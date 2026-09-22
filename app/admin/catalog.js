@@ -9,6 +9,17 @@ import {
   ARTWORK_STATUS, DISPOSITION, CATEGORY, VISIBILITY, effectiveRights, completeness,
   hasUsableMaster, isGone,
 } from '../store/schema.js';
+import { coverImage, urlFor } from '../images/photos.js';
+
+// Object URLs for the thumbnails on screen, revoked whenever the results are
+// redrawn. Search redraws on every keystroke, so leaking these would mean a
+// leaked blob URL per card per letter typed.
+let liveUrls = [];
+function trackUrl(url) { liveUrls.push(url); return url; }
+function releaseUrls() {
+  for (const url of liveUrls) URL.revokeObjectURL(url);
+  liveUrls = [];
+}
 
 const state = { filters: { ...BLANK_FILTERS }, sort: 'updated', view: 'grid' };
 
@@ -32,6 +43,7 @@ export async function renderCatalog(host, { query } = {}) {
   });
 
   const redraw = () => {
+    releaseUrls();
     const shown = filterArtworks(all, state.filters, state.sort);
     count.textContent = `${shown.length} of ${all.length} pieces`;
     viewButton.textContent = state.view === 'grid' ? 'List view' : 'Grid view';
@@ -108,18 +120,35 @@ function wrap(text, control) {
   return el('label', { class: 'field' }, el('span', { text }), control);
 }
 
+/**
+ * The card thumbnail comes out of IndexedDB, not off disk.
+ *
+ * `thumb_path` is where Phase 4's publish step will write the file. Until that
+ * has run there is nothing at that URL, so every card for a piece with photos
+ * showed a broken image. The pixels are in the blob store; the path is only a
+ * fallback for a built public catalog, where the file really is there.
+ */
 function thumb(artwork) {
-  const image = (artwork.images || [])[0];
-  if (image?.thumb_path || image?.web_path) {
-    return el('img', {
-      class: 'thumb', loading: 'lazy',
-      src: image.thumb_path || image.web_path,
-      alt: image.alt || artwork.title,
-    });
+  const image = coverImage(artwork);
+  if (!image) {
+    // No photo yet. §6.2 exists to turn these into real ones.
+    return el('div', { class: 'thumb empty', 'aria-hidden': 'true' },
+      el('span', { text: (artwork.title || '?').slice(0, 1).toUpperCase() }));
   }
-  // No photo yet. §6.2 exists to turn these into real ones.
-  return el('div', { class: 'thumb empty', 'aria-hidden': 'true' },
-    el('span', { text: (artwork.title || '?').slice(0, 1).toUpperCase() }));
+
+  const holder = el('div', { class: 'thumb loading' });
+  const show = (src) => mount(holder, el('img', {
+    class: 'thumb-img', loading: 'lazy', src, alt: image.alt || artwork.title,
+    onError: () => mount(holder, el('span', { class: 'muted small' }, 'missing')),
+  }));
+
+  urlFor(image.id, 'thumb').then((url) => {
+    if (url) { trackUrl(url); show(url); return; }
+    if (image.thumb_path || image.web_path) { show(image.thumb_path || image.web_path); return; }
+    mount(holder, el('span', { class: 'muted small' }, 'missing'));
+  });
+
+  return holder;
 }
 
 function badges(artwork) {
