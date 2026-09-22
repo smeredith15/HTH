@@ -429,3 +429,57 @@ textarea.mono {
 .table.costs td input { min-height: 38px; width: 6.5rem; }
 .table.costs td:first-child { white-space: nowrap; }
 .table.costs { min-width: 46rem; }
+
+.mount-cell { display: flex; flex-direction: column; gap: 0.2rem; }
+.mount-cell input[type="number"] { width: 5rem; }
+.check.tight { min-height: 28px; margin-bottom: 0; gap: 0.35rem; }
+.table.costs { min-width: 54rem; }
+
+.findings-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.findings-list li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+  font-size: 0.9rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--line);
+}
+.findings-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.findings-list li > span { flex: 1; min-width: 14rem; }
+
+/* --- photographs (§6.2) -------------------------------------------------- */
+
+.view-head.tight { margin-bottom: 0.6rem; }
+.row.tight { gap: 0.4rem; }
+
+.guide-list { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--text-muted); font-size: 0.875rem; }
+.guide-list li { margin-bottom: 0.35rem; }
+
+.photo-list { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 0.75rem; }
+.photo-list li {
+  display: grid; grid-template-columns: 84px 1fr auto; gap: 0.75rem; align-items: start;
+  padding-bottom: 0.75rem; border-bottom: 1px solid var(--line);
+}
+.photo-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.photo-list li.has-photo { grid-template-columns: 84px 1fr; }
+
+.photo-thumb {
+  width: 84px; aspect-ratio: 1; border-radius: var(--radius); overflow: hidden;
+  background: var(--char-900); display: grid; place-items: center;
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb.empty {
+  background: repeating-linear-gradient(135deg, var(--char-900) 0 6px, #13181b 6px 12px);
+  border: 1px dashed var(--slate-500);
+}
+
+.photo-body { min-width: 0; }
+.photo-controls { margin-top: 0.6rem; }
+.photo-controls .field { margin-bottom: 0.5rem; }
+
+.linkish {
+  background: none; border: 0; padding: 0; font: inherit;
+  color: var(--pine); text-decoration: underline; cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .photo-list li, .photo-list li.has-photo { grid-template-columns: 64px 1fr; }
+  .photo-thumb { width: 64px; }
+  .photo-list li > label.btn { grid-column: 2; justify-self: start; }
+}

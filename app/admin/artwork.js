@@ -9,7 +9,10 @@ import {
   ARTWORK_STATUS, DISPOSITION, VISIBILITY, CATEGORY, SHAPE, SUBSTRATE,
   TECHNIQUE, RIGHTS_FLAG, RIGHTS_ANSWER, PRINT_READY,
   completeness, effectiveRights, printLimits, hasUsableMaster, isGone,
+  photographBeforeItLeaves, snoozeUntil,
 } from '../store/schema.js';
+import { photoPanel } from './photo-panel.js';
+import { missingAltText } from '../images/photos.js';
 
 const RIGHTS_TONE = { yes: 'ok', ask_first: 'warn', no: 'bad', unknown: 'muted' };
 
@@ -17,10 +20,11 @@ export async function renderArtwork(host, { params }) {
   const artwork = await getArtwork(params.id);
   if (!artwork) return mount(host, el('p', { class: 'empty' }, `No piece with the id “${params.id}”.`));
   const settings = await loadSettings();
-  mount(host, detail(artwork, settings));
+  const reload = () => renderArtwork(host, { params });
+  mount(host, detail(artwork, settings, reload));
 }
 
-function detail(artwork, settings) {
+function detail(artwork, settings, reload) {
   const rights = effectiveRights(artwork.rights);
   const meter = completeness(artwork);
   const limits = printLimits(artwork.print_master);
@@ -50,11 +54,15 @@ function detail(artwork, settings) {
         ' Borrow the piece back and reshoot it.')
       : null,
 
-    artwork.on_hand && !(artwork.images || []).some((i) => i.role === 'straight_on')
+    photographPrompt(artwork, reload),
+
+    missingAltText(artwork).length
       ? el('div', { class: 'alert warn' },
-        el('strong', null, 'Photograph this before it leaves.'),
-        ' It is still on hand and has no straight-on photo, so there is no print master yet.')
+        el('strong', null, `${missingAltText(artwork).length} photo${missingAltText(artwork).length === 1 ? ' has' : 's have'} no alt text. `),
+        'Alt text is required before publishing.')
       : null,
+
+    photoPanel(artwork, reload),
 
     section('Specs', [
       row('Status', label(artwork.status)),
@@ -120,6 +128,32 @@ function detail(artwork, settings) {
 
     el('div', { class: 'row end danger-zone' },
       el('button', { class: 'btn danger ghost', type: 'button', onClick: () => remove(artwork) }, 'Delete')));
+}
+
+/** §6.2's most important prompt, and it has to be dismissible. */
+function photographPrompt(artwork, reload) {
+  const state = photographBeforeItLeaves(artwork);
+  if (!state) return null;
+  if (!state.showing) {
+    return el('p', { class: 'muted small' },
+      `Photograph reminder snoozed until ${dateOnly(state.snoozedUntil)}. `,
+      el('button', { class: 'linkish', type: 'button', onClick: async () => {
+        await saveArtwork({ ...artwork, photo_prompt_snoozed_until: null });
+        reload();
+      } }, 'Bring it back'));
+  }
+  const snooze = async (days) => {
+    await saveArtwork({ ...artwork, photo_prompt_snoozed_until: snoozeUntil(days) });
+    toast(`Reminder snoozed for ${days} days.`);
+    reload();
+  };
+  return el('div', { class: 'alert warn' },
+    el('strong', null, 'Photograph this before it leaves.'),
+    ' It is still on hand and has no straight-on photo, so there is no print master. '
+    + 'Four lighthouses already went out of the studio this way and can never be printed.',
+    el('div', { class: 'row' },
+      el('button', { class: 'btn ghost small', type: 'button', onClick: () => snooze(7) }, 'Snooze a week'),
+      el('button', { class: 'btn ghost small', type: 'button', onClick: () => snooze(30) }, 'Snooze a month')));
 }
 
 function floorLine(artwork, settings) {

@@ -25,6 +25,25 @@ export const FULFILMENT_LABELS = {
 };
 
 /**
+ * What it costs to turn a quoted print into something ready to hang.
+ *
+ * The two labs quote different products: CanvasChamp's price already includes
+ * proofing and hanging hardware, while Nations quotes a bare print and mounts
+ * it on 3/16 in foamcore for roughly half the base price again. Comparing
+ * their headline numbers without this is comparing a finished piece against a
+ * sheet of paper.
+ */
+export function finishingCost(costRow) {
+  if (!costRow?.mounted) return 0;
+  const flat = Number(costRow.finishing_cost);
+  if (Number.isFinite(flat) && flat > 0) return round(flat);
+  const pct = Number(costRow.finishing_pct);
+  const unit = Number(costRow.unit_cost);
+  if (!Number.isFinite(pct) || !Number.isFinite(unit)) return 0;
+  return round(unit * pct);
+}
+
+/**
  * Everything one print costs Scott before Etsy takes anything.
  * Returns null when the vendor cost is unknown — a margin built on a guess is
  * worse than no margin.
@@ -39,13 +58,16 @@ export function landedCost(costRow, vendor, settings) {
   const posts = fulfilment !== 'dropship';
   const outbound = posts ? Number(s.print_shipping_estimate) || 0 : 0;
   const packaging = posts ? Number(s.packaging_cost) || 0 : 0;
+  const finishing = finishingCost(costRow);
 
   return {
     unit,
+    finishing,
     inbound,
     outbound,
     packaging,
-    total: round(unit + inbound + outbound + packaging),
+    readyToHang: finishing > 0 || !costRow?.finishing_pct,
+    total: round(unit + finishing + inbound + outbound + packaging),
   };
 }
 
@@ -134,9 +156,84 @@ export function compareVendors(costRows, vendors, settings, { width_in, height_i
         cost,
         breakEven: breakEven(cost, s),
         target: priceForMargin(cost, s, Number(s.target_print_margin)),
+        // A bare print and a mounted one are not the same product, and neither
+        // is an unverified lab. Both belong next to the number.
+        readyToHang: cost.readyToHang,
+        qualityChecked: !!vendor?.quality_checked_on,
       };
     })
     .sort((a, b) => a.cost.total - b.cost.total);
+}
+
+/**
+ * Look for lab prices that cannot both be right.
+ *
+ * A meaningfully larger print costing meaningfully less can be a promotion
+ * that will expire, a typo, or simply an uncommon size carrying a premium —
+ * which is what CanvasChamp's 18 × 36 turned out to be. All three are worth
+ * seeing once. None is worth being told about twice, so a row confirmed as
+ * correct stops reporting.
+ *
+ * The thresholds matter: a size ladder is lumpy, so a 12 × 24 costing 49¢ more
+ * than a 16 × 20 is granularity, not a finding.
+ */
+const AREA_RATIO = 1.10;   // the larger print must be at least 10% bigger
+const PRICE_DROP = 0.10;   // and at least 10% cheaper
+
+export function costAnomalies(rows) {
+  const out = [];
+  const byLine = new Map();
+  for (const row of rows) {
+    if (!(Number(row.unit_cost) > 0) || !row.width_in || !row.height_in) continue;
+    if (!byLine.has(row.line)) byLine.set(row.line, []);
+    byLine.get(row.line).push({ ...row, area: row.width_in * row.height_in });
+  }
+
+  const confirmed = new Set(rows.filter((r) => r.cost_confirmed_on).map((r) => r.id));
+
+  for (const [line, set] of byLine) {
+    if (set.length < 3) continue;
+    set.sort((a, b) => a.area - b.area);
+
+    for (let i = 0; i < set.length; i += 1) {
+      for (let j = i + 1; j < set.length; j += 1) {
+        const bigger = set[j].area / set[i].area >= AREA_RATIO;
+        const cheaper = (set[i].unit_cost - set[j].unit_cost) / set[i].unit_cost >= PRICE_DROP;
+        if (bigger && cheaper) {
+          if (confirmed.has(set[i].id)) { j = set.length; continue; }
+          out.push({
+            line,
+            id: set[i].id,
+            kind: 'inverted',
+            message: `${sizeLabel(set[i])} costs $${set[i].unit_cost.toFixed(2)} but the larger `
+              + `${sizeLabel(set[j])} is only $${set[j].unit_cost.toFixed(2)}. Uncommon sizes often `
+              + 'carry a premium, so this may be right — or it may be a sale that will expire.',
+          });
+          j = set.length;
+        }
+      }
+    }
+
+    // A loose guard for a misplaced decimal point. Small sizes genuinely cost
+    // far more per square inch, so anything tighter than this is all noise.
+    const psi = set.map((r) => r.unit_cost / r.area).sort((a, b) => a - b);
+    const median = psi[Math.floor(psi.length / 2)];
+    for (const row of set) {
+      const ratio = (row.unit_cost / row.area) / median;
+      if ((ratio > 3 || ratio < 0.34) && !confirmed.has(row.id)) {
+        out.push({
+          line,
+          id: row.id,
+          kind: 'outlier',
+          message: `${sizeLabel(row)} at $${row.unit_cost.toFixed(2)} is `
+            + `${ratio > 1 ? 'far dearer' : 'far cheaper'} per square inch than everything else in `
+            + 'this line. Check the decimal point.',
+        });
+      }
+    }
+  }
+  const seen = new Set();
+  return out.filter((a) => (seen.has(a.id) ? false : seen.add(a.id)));
 }
 
 /** 16 × 20 and 20 × 16 are the same print turned round. */

@@ -153,11 +153,148 @@ in §5.10; they are additions.
    separate `print_margin` note fires when a price clears cost but misses the
    target margin.
 
+### The two labs quote different products
+
+Established October 2026, and it matters more than the headline prices do:
+
+- **CanvasChamp** quotes a finished piece. Proofing and hanging hardware are in
+  the price, so nothing is added to make it ready to hang.
+- **Nations Photo Lab** quotes a bare print. Ready to hang needs a 3/16 in
+  white foamcore mount at roughly **50% of the base price again**.
+
+Comparing $20 against $34 without that is comparing a finished canvas against a
+sheet of paper. Each product line therefore carries `includes` and `finishing`,
+and the mount lands inside the landed cost rather than beside it. The Mount
+column can be unticked to price a bare print, or typed over with a flat figure
+when the percentage is wrong.
+
+### Both labs drop-ship
+
+Confirmed by the owner, October 2026. Neither lab is handled by Scott: no
+inbound leg, no postage out, no packaging. Landed cost is the lab's price plus
+the lab's own shipping, plus mounting where the lab does not include it.
+
+CanvasChamp also carries a `quality_checked_on` date — they have produced good
+work before. Nations is **assumed** good pending a proof, so its comparison
+rows still say "not proofed" until one has been ordered and approved.
+
+### Superseded: Nations drop-ships
+
+They are local, but their site offers no in-person collection, and their
+postage is likely cheaper than Scott's. So `fulfilment` is `dropship`: they
+ship to the buyer, their shipping charge is the only postage, and Scott pays no
+packaging.
+
+That is a real asymmetry against CanvasChamp, which is `receive_and_ship` —
+Scott pays inbound, postage out and packaging on every one of those. It is
+worth checking whether CanvasChamp will drop-ship too, because it is worth
+about $14.50 a print.
+
+Worked at 16 × 20 on the real quotes, both labs drop-shipping:
+
+| | Landed | Target at 55% |
+|---|---|---|
+| CanvasChamp canvas $22.27, hardware included | $32.26 | $92.14 |
+| Nations giclée $39.85 + $19.93 mount | $69.73 | $197.69 |
+
+Genuine giclée more than doubles the shelf price at that size.
+
+### What the real quotes showed (22 September 2026)
+
+**The MDF line cannot carry the shop's prices.** CanvasChamp wood runs about
+28¢ a square inch against 6¢ for canvas — three to four times the cost for the
+same image. The cactus print's sizes today:
+
+| Size | Price | Landed | Profit | Margin | Break even |
+|---|---|---|---|---|---|
+| 12 × 8 | $55 | $40.18 | $9.14 | 17% | $44.90 |
+| 18 × 12 | $75 | $58.96 | $8.46 | 11% | $65.65 |
+| 24 × 16 | $140 | $117.31 | $8.94 | 6% | $130.12 |
+
+Every size earns about nine dollars, and the largest is $10 above the price at
+which it earns nothing. Reaching the target margin at 24 × 16 would mean $331.72,
+which is not a price anyone pays for a print.
+
+**Canvas is the opposite story.** 24 × 36 canvas lands at $41.99, so the whale
+and flag listings' top variant at $340 runs a 78% margin. Their $50 entry
+variant runs 25%.
+
+**Giclée paper is cheapest at small sizes and dearest at large.** Below about
+12 × 12 it beats canvas even after mounting; from 16 × 20 up it is roughly
+double. That suits it as a small premium option rather than the large-format
+one.
+
+**Nations giclée on canvas is entirely unpriced**, and it is the only true
+like-for-like against CanvasChamp canvas.
+
+### Cost sanity checks
+
+Lab price ladders are lumpy, so the check only fires when a print at least 10%
+larger costs at least 10% less. A loose per-square-inch guard catches a
+misplaced decimal point. Tighter thresholds flagged fourteen things on Scott's
+real data, almost all of it aspect-ratio granularity; these flag three.
+
+All three turned out to be **correct**: CanvasChamp charges a premium on less
+common sizes, so an 18 × 36 really does cost more than a 24 × 36. Being told
+twice about correct data is worse than not checking at all, so each finding
+carries a "That price is right" button which records `cost_confirmed_on` and
+stops that row reporting. The check still watches every other row, and a
+confirmed row starts reporting again only if its price changes.
+
+### CSV import creates sizes it has not seen
+
+Scott's own file carried fourteen sizes the seeded template never had, and the
+first import silently dropped every one of them — which also hid one of the
+three anomalies. A row whose id is unknown is now created, as long as it
+carries a size and a line that can be read from its id or its vendor columns.
+Without that, an export could not rebuild a catalogue after browser storage was
+cleared, which is exactly what an export is for.
+
+### Neither lab is proofed yet
+
+Each lab carries a `quality_checked_on` date, empty until Scott has held one of
+their prints and been happy with it. Until then every comparison row says "not
+proofed", because a cost comparison between two products nobody has seen is
+only half an answer.
+
 ### Open
 
 The template is empty until Scott fills it. Until then the margin columns stay
 blank and the check stays quiet — it never invents a cost to have something to
 say.
+
+Whether CanvasChamp will drop-ship is unasked, and worth about $14.50 a print.
+
+## Phase 3 — images
+
+### The long edge gives way before the quality does
+
+§5.3 asks for 2,000 px at about quality 0.82, under 600 KB. Those three can
+conflict: a densely textured photograph — which is exactly what scorched and
+carved wood is — can miss 600 KB at 2,000 px even at the lowest quality worth
+shipping.
+
+The order of surrender is quality first, down to 0.45, then the long edge:
+1,800, 1,600, 1,400 px. Below 1,400 nothing is worth publishing, so it stops
+there and says the budget was missed rather than shipping something unusable.
+A real photograph never reaches this — a 4,000 px test shot came out 2,000 px
+at 142 KB. Pure noise fell back to 1,800 px at 567 KB. Both are correct.
+
+### The original is read, then discarded
+
+A phone photo is 3–12 MB and §3 caps a committed file at 50 MB, so originals
+are never stored. What is kept is `original_width_px` and `original_height_px`,
+private, because that pair is the only thing that decides the print-size limit
+(§5.4). Adding a straight-on photo offers to record it as the print master
+rather than doing it silently — the registry is the owner's judgement, not a
+side effect.
+
+### The prompt that matters most is snoozable
+
+§6.2 calls "photograph this before it leaves" the prompt that matters most, and
+asks for a snooze. A warning that cannot be dismissed is a warning that gets
+ignored, so it snoozes for a week or a month, and the home screen filters on the
+same helper — otherwise one snooze would only silence half the app.
 
 ## Assumptions made without asking
 

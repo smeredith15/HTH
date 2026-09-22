@@ -28,6 +28,18 @@ npm test
 
 No dependencies. Node's built-in test runner, plain ES modules.
 
+### What Phase 3 covers
+
+Photographs are resized in the browser and never leave the device: a 2,000 px
+web copy under 600 KB and a 600 px thumbnail, with the original discarded. What
+is kept from the original is its pixel size, because that is what decides how
+large the piece can ever be printed.
+
+The seven-shot checklist from §6.2 sits on every artwork with the shooting
+guide, per-photo alt text and quality flags. Adding a straight-on photo offers
+to record it as the print master. A piece still on hand with no straight-on
+photo says "photograph this before it leaves", and that prompt can be snoozed.
+
 ## Print costs
 
 `#/print-costs` holds what each lab charges per size — CanvasChamp canvas and
@@ -57,7 +69,7 @@ Print masters are never committed. The registry records where they live.
 |---|---|---|
 | 1 | Catalog and storage | **done** |
 | 2 | Listing generator and validators | **done** |
-| 3 | Images and print masters | not started |
+| 3 | Images and print masters | **done** |
 | 4 | Publish, kiosk, public portfolio | not started |
 | 5 | Offline / PWA | not started |
 | 6 | Sales, commissions, inventory, budgeting, dashboard | not started |

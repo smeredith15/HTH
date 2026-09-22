@@ -6,12 +6,12 @@
 import { el, mount, money, label, field, select, pill, toast, confirmDialog } from '../ui/dom.js';
 import {
   listPrintCosts, listPrintVendors, savePrintCost, savePrintVendor, deletePrintCost,
-  addPrintCostRow, PRODUCT_LINES, toCSV, applyCSV,
+  addPrintCostRow, PRODUCT_LINES, toCSV, applyCSV, lineFor,
 } from '../store/print-costs.js';
 import { putMany, loadSettings, saveSettings } from '../store/db.js';
 import {
-  landedCost, breakEven, priceForMargin, compareVendors, sizeLabel, sameSize,
-  FULFILMENT, FULFILMENT_LABELS,
+  landedCost, finishingCost, breakEven, priceForMargin, compareVendors, costAnomalies,
+  sizeLabel, sameSize, FULFILMENT, FULFILMENT_LABELS,
 } from '../listing/print-pricing.js';
 
 const state = { hideUnpriced: false };
@@ -43,6 +43,8 @@ export async function renderPrintCosts(host) {
           onChange: (e) => { state.hideUnpriced = e.target.checked; renderPrintCosts(host); } }),
         el('span', null, 'Hide the sizes I have not priced'))),
 
+    anomalyPanel(rows, host),
+
     assumptionsPanel(settings, host),
 
     ...PRODUCT_LINES.map((line) => linePanel(line, rows, byName.get(line.vendor), settings, host)),
@@ -50,6 +52,24 @@ export async function renderPrintCosts(host) {
     vendorPanel(vendors, host),
 
     priced.length ? comparisonPanel(rows, vendors, settings) : null);
+}
+
+function anomalyPanel(rows, host) {
+  const anomalies = costAnomalies(rows);
+  if (!anomalies.length) return null;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return el('section', { class: 'panel alert warn' },
+    el('h2', null, 'Worth a second look'),
+    el('p', { class: 'hint' }, 'Uncommon sizes often cost more than the standard size above them. If that is what this is, say so and it stops asking.'),
+    el('ul', { class: 'findings-list' }, anomalies.map((a) => el('li', null,
+      el('span', { text: a.message }),
+      el('button', {
+        class: 'btn ghost small', type: 'button',
+        onClick: async () => {
+          await savePrintCost({ ...byId.get(a.id), cost_confirmed_on: new Date().toISOString().slice(0, 10) });
+          renderPrintCosts(host);
+        },
+      }, 'That price is right')))));
 }
 
 function assumptionsPanel(settings, host) {
@@ -92,10 +112,20 @@ function linePanel(line, rows, vendor, settings, host) {
       label(line.substrate), ' · ', label(line.process),
       vendor ? ` · ${FULFILMENT_LABELS[vendor.fulfilment] ?? ''}` : '',
       line.process === 'giclee' ? null : el('span', null, ' · ', pill('not giclée', 'muted'))),
+    el('p', { class: 'hint' },
+      line.includes?.length
+        ? el('span', null, el('strong', null, 'Price includes: '), line.includes.join(', '), '. ')
+        : el('span', null, el('strong', null, 'Price is for the print alone. '))),
+      line.finishing
+        ? el('p', { class: 'hint' },
+          `Ready to hang needs a ${line.finishing.label}, about `
+          + `${Math.round(line.finishing.pct * 100)}% of the base price again. `
+          + 'Untick Mount to price a bare print instead, or type a flat figure over it.')
+        : null,
     el('div', { class: 'table-wrap' },
       el('table', { class: 'table costs' },
         el('thead', null, el('tr', null,
-          ['Size', 'Lab charges', 'Ship in', 'Landed', 'Break even', `Target`, 'Lead', ''].map((h) => el('th', { text: h })))),
+          ['Size', 'Lab charges', 'Ship', 'Mount', 'Landed', 'Break even', 'Target', 'Lead', ''].map((h) => el('th', { text: h })))),
         body)),
     el('button', { class: 'btn ghost small', type: 'button', onClick: () => addSize(line, host) }, '+ Add a size'));
 }
@@ -129,6 +159,7 @@ function costRow(row, vendor, settings, host, refill) {
       row.note ? el('span', { class: 'muted small', text: ` ${row.note}` }) : null),
     numberCell('unit_cost'),
     numberCell('ship_each'),
+    el('td', null, mountCell(row, host)),
     el('td', null, recompute() || derived),
     el('td', { class: 'muted', text: cost ? money(breakEven(cost, settings)) : '—' }),
     el('td', null, target ? el('strong', { text: money(target) }) : el('span', { class: 'muted', text: '—' })),
@@ -149,6 +180,39 @@ function costRow(row, vendor, settings, host, refill) {
   return cells;
 }
 
+/**
+ * Mounting is derived from the base price, so it moves when the price does.
+ * The checkbox is the useful control; the number beside it is what that rule
+ * currently works out to, and can be typed over when the rule is wrong.
+ */
+function mountCell(row, host) {
+  if (!row.finishing_pct && row.finishing_cost === null) {
+    return el('span', { class: 'muted small', text: 'included' });
+  }
+  const derived = finishingCost(row);
+  return el('div', { class: 'mount-cell' },
+    el('label', { class: 'check tight' },
+      el('input', {
+        type: 'checkbox', checked: !!row.mounted,
+        'aria-label': `Mount the ${sizeLabel(row)} print`,
+        onChange: async (e) => {
+          await savePrintCost({ ...row, mounted: e.target.checked });
+          renderPrintCosts(host);
+        },
+      }),
+      el('span', { class: 'muted small', text: row.mounted ? money(derived) : 'bare' })),
+    el('input', {
+      type: 'number', step: '0.01', inputMode: 'decimal',
+      value: row.finishing_cost ?? '',
+      placeholder: row.finishing_pct ? `${Math.round(row.finishing_pct * 100)}%` : '',
+      'aria-label': `Flat mounting cost for ${sizeLabel(row)}`,
+      onChange: async (e) => {
+        await savePrintCost({ ...row, finishing_cost: e.target.value === '' ? null : Number(e.target.value) });
+        renderPrintCosts(host);
+      },
+    }));
+}
+
 function vendorPanel(vendors, host) {
   return el('section', { class: 'panel' },
     el('h2', null, 'Labs'),
@@ -163,10 +227,21 @@ function vendorPanel(vendors, host) {
         rows: 3, value: vendor.notes ?? '',
         onChange: async (e) => { await savePrintVendor({ ...vendor, notes: e.target.value || null }); },
       })),
-      field('Prices last checked', el('input', {
-        type: 'date', value: vendor.checked_on ?? '',
-        onChange: async (e) => { await savePrintVendor({ ...vendor, checked_on: e.target.value || null }); },
-      }), 'Lab prices move. This is the date you last looked.'))));
+      el('div', { class: 'two-up' },
+        field('Prices last checked', el('input', {
+          type: 'date', value: vendor.checked_on ?? '',
+          onChange: async (e) => { await savePrintVendor({ ...vendor, checked_on: e.target.value || null }); },
+        }), 'Lab prices move. This is the date you last looked.'),
+        field('Proof approved', el('input', {
+          type: 'date', value: vendor.quality_checked_on ?? '',
+          onChange: async (e) => {
+            await savePrintVendor({ ...vendor, quality_checked_on: e.target.value || null });
+            renderPrintCosts(host);
+          },
+        }), 'The date you held one of their prints and were happy with it. Until then the comparison says so.')),
+      vendor.quality_checked_on
+        ? pill(`proofed ${vendor.quality_checked_on}`, 'ok')
+        : pill('not proofed yet', 'warn'))));
 }
 
 /**
@@ -192,19 +267,24 @@ function comparisonPanel(rows, vendors, settings) {
 
   return el('section', { class: 'panel' },
     el('h2', null, 'Lab comparison'),
-    el('p', { class: 'hint' }, 'Cheapest first. “Target” is the price that leaves your target margin — the difference between two rows is what genuine giclée costs the buyer.'),
+    el('p', { class: 'hint' }, 'Cheapest first, ready-to-hang against ready-to-hang. “Target” is the price that leaves your target margin, so the difference between two rows is what genuine giclée costs the buyer.'),
     ...comparable.map(({ size, options }) => el('div', { class: 'panel inset' },
       el('h3', { text: sizeLabel(size) }),
       el('div', { class: 'table-wrap' },
         el('table', { class: 'table' },
-          el('thead', null, el('tr', null, ['Lab', 'Process', 'Landed', 'Break even', 'Target price', 'vs cheapest'].map((h) => el('th', { text: h })))),
+          el('thead', null, el('tr', null, ['Lab', 'Process', 'Ready to hang', 'Landed', 'Break even', 'Target price', 'vs cheapest'].map((h) => el('th', { text: h })))),
           el('tbody', null, options.map((option, i) => el('tr', null,
-            el('td', { text: option.row.vendor }),
+            el('td', null,
+              el('span', { text: option.row.vendor }),
+              option.qualityChecked ? null : el('span', { class: 'muted small', text: ' · not proofed' })),
             el('td', null, option.row.process === 'giclee' ? pill('giclée', 'ok') : label(option.row.process)),
+            el('td', null, option.readyToHang
+              ? el('span', { class: 'muted small', text: option.cost.finishing ? `+${money(option.cost.finishing)} mount` : 'included' })
+              : pill('bare print', 'warn')),
             el('td', { text: money(option.cost.total) }),
             el('td', { class: 'muted', text: money(option.breakEven) }),
             el('td', null, el('strong', { text: money(option.target) })),
-            el('td', { class: i === 0 ? 'muted' : '' , text: i === 0 ? 'cheapest' : `+${money(option.target - options[0].target)}` }))))))))); 
+            el('td', { class: i === 0 ? 'muted' : '' , text: i === 0 ? 'cheapest' : `+${money(option.target - options[0].target)}` })))))))));
 }
 
 // --- CSV ------------------------------------------------------------------
@@ -232,10 +312,14 @@ function csvUploadButton(host) {
         if (!result.updated.length) {
           toast(`Nothing changed. ${result.unchanged} rows matched what is already here.`, 'warn');
         } else {
+          const changed = result.updated.length - result.created.length;
+          const parts = [];
+          if (changed) parts.push(`update ${changed} row${changed === 1 ? '' : 's'}`);
+          if (result.created.length) parts.push(`add ${result.created.length} size${result.created.length === 1 ? '' : 's'} this device has not seen`);
           const ok = await confirmDialog(
-            `Update ${result.updated.length} row${result.updated.length === 1 ? '' : 's'} from ${file.name}?`
-            + (result.unknown.length ? ` ${result.unknown.length} row(s) had an id this app does not know and will be skipped.` : ''),
-            { confirmText: 'Update', tone: 'primary' },
+            `From ${file.name}: ${parts.join(', and ')}?`
+            + (result.unknown.length ? ` ${result.unknown.length} row(s) carried no usable size and will be skipped.` : ''),
+            { confirmText: 'Import', tone: 'primary' },
           );
           if (ok) {
             await putMany('print_costs', result.updated.map((r) => ({ ...r, updated_at: new Date().toISOString() })));

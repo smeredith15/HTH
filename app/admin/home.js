@@ -7,7 +7,7 @@ import { getAll, loadSettings, storageEstimate } from '../store/db.js';
 import { listListings, listingsNeedingAttention } from '../store/listings.js';
 import { listPrintCosts } from '../store/print-costs.js';
 import { exportAge } from '../store/backup.js';
-import { effectiveRights, hasUsableMaster, isGone } from '../store/schema.js';
+import { effectiveRights, hasUsableMaster, isGone, photographBeforeItLeaves } from '../store/schema.js';
 import { promptQuickAdd } from './catalog.js';
 
 export async function renderHome(host) {
@@ -27,7 +27,9 @@ export async function renderHome(host) {
 
   const gone = artworks.filter(isGone);
   const lostCatalog = gone.filter((a) => !hasUsableMaster(a));
-  const needsPhoto = artworks.filter((a) => a.on_hand && !(a.images || []).some((i) => i.role === 'straight_on'));
+  // A reminder snoozed on the artwork should be snoozed here too, or the
+  // snooze is not a snooze.
+  const needsPhoto = artworks.filter((a) => photographBeforeItLeaves(a)?.showing);
   const withMaster = artworks.filter(hasUsableMaster);
 
   mount(host,

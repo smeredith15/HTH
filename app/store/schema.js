@@ -70,10 +70,13 @@ export const PRIVATE_ARTWORK_FIELDS = [
   'on_hand', 'location_stored', 'visibility', 'date_finished', 'has_face',
   'subject_count', 'hours', 'hours_sessions', 'materials_cost',
   'show_price_in_kiosk', 'notes', 'reference_source', 'rights', 'print_master',
-  'commission_id', 'created_at', 'updated_at',
+  'commission_id', 'created_at', 'updated_at', 'photo_prompt_snoozed_until',
 ];
 
-export const PRIVATE_IMAGE_FIELDS = ['quality_flags', 'original_blob_id'];
+export const PRIVATE_IMAGE_FIELDS = [
+  'quality_flags', 'original_blob_id', 'original_width_px', 'original_height_px',
+  'original_bytes', 'original_name', 'added_at',
+];
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -150,6 +153,9 @@ export function newArtwork(patch = {}) {
     history: null,
     notes: null,
     reference_source: null,
+    // §6.2's prompt is the one that matters most, so it must be snoozable —
+    // a warning that cannot be dismissed is a warning that gets ignored.
+    photo_prompt_snoozed_until: null,
     rights: newRights(),
     print_master: newPrintMaster(),
     images: [],
@@ -272,6 +278,25 @@ export function hasUsableMaster(artwork) {
 /** Gone from the studio, so it can only ever be reproduced from a file. */
 export function isGone(artwork) {
   return ['sold', 'gifted', 'commission_delivered'].includes(artwork?.disposition);
+}
+
+/**
+ * §6.2: "the prompt that matters most". A piece still in the studio with no
+ * straight-on photograph is one sale away from being unreproducible — four
+ * lighthouses already went that way.
+ */
+export function photographBeforeItLeaves(artwork, now = new Date()) {
+  if (!artwork?.on_hand) return null;
+  if ((artwork.images ?? []).some((i) => i.role === 'straight_on')) return null;
+  const snoozed = artwork.photo_prompt_snoozed_until;
+  if (snoozed && new Date(snoozed) > now) return { snoozedUntil: snoozed, showing: false };
+  return { snoozedUntil: null, showing: true };
+}
+
+export function snoozeUntil(days, now = new Date()) {
+  const date = new Date(now);
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
 }
 
 // ---------------------------------------------------------------------------
