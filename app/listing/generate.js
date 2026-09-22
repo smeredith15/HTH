@@ -24,6 +24,20 @@ const PRINT_SUBSTRATE_SENTENCES = {
   metal: 'Printed on brushed aluminium.',
 };
 
+// What the ink actually is, per process. Used in materials and in the
+// description, so the listing never claims more than the vendor supports.
+export const INK_WORDS = {
+  giclee: 'archival pigment ink',
+  uv_direct: 'uv ink',
+  digital: 'latex ink',
+};
+
+const PRINT_PROCESS_SENTENCES = {
+  giclee: 'Giclée printed with archival pigment inks.',
+  uv_direct: 'The ink is permanent UV ink, cured onto the surface.',
+  digital: 'The inks are solvent-free and UV-resistant.',
+};
+
 const CATEGORY_WORDS = {
   lighthouse: 'coastal', coastal: 'coastal', wildlife: 'wildlife', landscape: 'landscape',
   architecture: 'architectural', portrait_person: 'portrait', portrait_pet: 'pet',
@@ -142,6 +156,7 @@ export function buildContext(listing, artwork, settings) {
     original_status_sentence: originalStatusSentence(art),
     print_substrate: PRINT_SUBSTRATE_WORDS[listing.print_substrate] ?? '',
     print_substrate_sentence: PRINT_SUBSTRATE_SENTENCES[listing.print_substrate] ?? '',
+    print_process_sentence: PRINT_PROCESS_SENTENCES[listing.print_process] ?? '',
     variant_lines: variantLines(listing.variants),
     commission_price_lines: commissionPriceLines(s),
     processing_min: min,
@@ -161,6 +176,7 @@ export function templateFor(listing, settings) {
 const OPTIONAL_PLACEHOLDERS = new Set([
   'history_paragraph', 'substrate_note', 'substrate_note_sentence', 'frame_sentence',
   'hardware_sentence', 'original_status_sentence', 'sports_line', 'depth_in',
+  'print_process_sentence',
 ]);
 
 export function generateDescription(listing, artwork, settings) {
@@ -264,7 +280,10 @@ export function suggestMaterials(artwork, listing) {
   const out = [];
   if (listing?.listing_type === 'print') {
     out.push(PRINT_SUBSTRATE_WORDS[listing.print_substrate] ?? 'wood panel');
-    out.push('archival ink');
+    // No ink word at all when the process is unconfirmed — §5.5's rule about
+    // giclée is really a rule about not claiming what the vendor has not said.
+    const ink = INK_WORDS[listing.print_process];
+    if (ink) out.push(ink);
   } else {
     if (artwork?.substrate) out.push(SUBSTRATE_WORDS[artwork.substrate]);
     if (artwork?.framed && artwork.frame_material) out.push(artwork.frame_material);

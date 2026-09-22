@@ -71,6 +71,11 @@ Seeded with B.7's drafted titles and tags for all eight live listings, plus the
 three custom drafts B.8 asks for — pet, family and sports, at the §8.2 prices,
 quantity 3, processing 6–8 weeks.
 
+Print processes are recorded from CanvasChamp's published specifications: latex
+inkjet on canvas, UV ink direct to MDF. Neither is giclée, so the two listings
+currently in Etsy's Giclée category are flagged, and no generated listing can
+claim "archival" ink that the vendor does not supply.
+
 ## Layout
 
 ```

@@ -41,7 +41,7 @@ export const SEED_TEMPLATES = {
 Sizes
 {{variant_lines}}
 
-{{print_substrate_sentence}} {{hardware_sentence}} Made to order.`,
+{{print_substrate_sentence}} {{print_process_sentence}} {{hardware_sentence}} Made to order.`,
 
   custom: `A hand-carved portrait in burnt wood, made from your photograph.
 

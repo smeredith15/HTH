@@ -184,7 +184,43 @@ test('the whale listing still starts at $50 — a backlog item, and the app says
   const whale = lst('lst-humpback-whale');
   assert.equal(Math.min(...whale.variants.map((v) => v.price)), 50);
   assert.equal(whale.print_vendor, 'CanvasChamp');
-  assert.equal(whale.print_process, 'unknown');
+  assert.equal(whale.print_process, 'digital', 'latex inkjet, per the vendor');
   const findings = validateListing(whale, art('humpback-whale'), S);
   assert.ok(findings.some((f) => f.id === 'giclee_claim'), 'the Giclée category is flagged');
+});
+
+test('the confirmed CanvasChamp processes are recorded (October 2026)', () => {
+  const byId = Object.fromEntries(SEED_LISTINGS.map((l) => [l.id, l]));
+  // "UV-resistant & solvent-free latex inks" on poly-cotton canvas.
+  for (const id of ['lst-toucan', 'lst-humpback-whale', 'lst-longhorn-skull-flag']) {
+    assert.equal(byId[id].print_process, 'digital', id);
+  }
+  // "We print directly on wood with permanent UV ink" onto MDF composite.
+  for (const id of ['lst-surf-van', 'lst-cactus-skull', 'lst-peace-sign']) {
+    assert.equal(byId[id].print_process, 'uv_direct', id);
+  }
+  for (const l of SEED_LISTINGS.filter((x) => x.listing_type === 'print')) {
+    assert.equal(l.print_vendor, 'CanvasChamp', l.id);
+    assert.notEqual(l.print_process, 'giclee', `${l.id} must not claim giclée`);
+  }
+});
+
+test('the ink named in materials matches the process, or is not named at all', () => {
+  const inkFor = (process) => suggestMaterials({}, { listing_type: 'print', print_substrate: 'canvas', print_process: process });
+  assert.deepEqual(inkFor('digital'), ['canvas', 'latex ink']);
+  assert.deepEqual(inkFor('uv_direct'), ['canvas', 'uv ink']);
+  assert.deepEqual(inkFor('giclee'), ['canvas', 'archival pigment ink']);
+  assert.deepEqual(inkFor('unknown'), ['canvas'], 'an unconfirmed process claims no ink at all');
+  assert.deepEqual(inkFor(null), ['canvas']);
+});
+
+test('no generated print listing makes a claim its own validators reject', () => {
+  for (const listing of SEED_LISTINGS.filter((l) => l.listing_type === 'print')) {
+    const artwork = art(listing.artwork_id);
+    const generated = generateListing(listing, artwork, S);
+    const filled = { ...listing, description: generated.description, materials: generated.materials };
+    const claims = validateListing(filled, artwork, S)
+      .filter((f) => ['archival_claim', 'museum_claim'].includes(f.id));
+    assert.deepEqual(claims, [], `${listing.id} generated an unsupportable claim`);
+  }
 });

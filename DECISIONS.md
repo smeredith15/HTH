@@ -16,23 +16,57 @@ Anything in here is reversible. Say the word and it changes.
 | Split the custom listing | **Yes, seed all three** (pet, family, sports) as drafts from B.7. |
 | Branch | Phase 1 merged to `main`; Phase 2 built on a branch restarted from it. |
 
-### The giclée decision
+### The giclée question — settled
 
-§5.5 says to use `giclee` "only after the print vendor confirms it". A vendor's
-product page is not that confirmation, and CanvasChamp is a consumer canvas
-printer rather than a fine-art press. So:
+CanvasChamp's own product pages answer it, and the answer is no. Two different
+processes, neither of them giclée:
 
-- `print_vendor: 'CanvasChamp'` on the toucan, whale and flag listings.
-- `print_process: 'unknown'` on all three.
-- The giclée validator therefore **fires on the whale and the flag**, both of
-  which currently sit in Etsy's *Giclée* category.
+| Line | What the vendor says | `print_process` |
+|---|---|---|
+| Canvas | "UV-resistant & solvent-free **latex inks**" on premium poly-cotton canvas over a wood frame | `digital` |
+| Wood | "We print directly on wood with permanent **UV ink**" onto "MDF composite wood material" | `uv_direct` |
 
-The cheap fix is moving both to *Digital Prints*, which is what
-`suggestCategoryPath` proposes. The other fix is asking CanvasChamp, in
-writing, whether they print with archival pigment inks on a fine-art substrate
-— and if they say yes, set the process to `giclee` in the listing screen and
-the warning goes away. Until one of those happens the app keeps flagging it,
-because the claim is on a public listing.
+Giclée means archival **pigment** ink on a fine-art substrate. Latex is a
+durable inkjet process and UV-cured ink is durable too, but neither is that.
+So `print_process` is now recorded as confirmed fact rather than `unknown`, and
+`print_vendor: 'CanvasChamp'` is on all six print listings.
+
+**What this changes:**
+
+1. The **whale and the flag** sit in Etsy's *Giclée* category on a claim the
+   vendor does not support. The validator flags both. The fix is moving them to
+   *Digital Prints* — which is what `suggestCategoryPath` now proposes for
+   every one of these listings, since none can be giclée.
+2. `suggestMaterials` used to put **"archival ink"** on every print. That was
+   wrong and is now derived from the process: `latex ink`, `uv ink`, or
+   `archival pigment ink` — and **nothing at all** when the process is
+   unconfirmed, because an unsupported claim is worse than a missing one.
+3. A new check, `archival_claim`, catches "archival" anywhere in a print's
+   title, description or materials unless the process really is giclée. A
+   companion note flags "museum quality", which is the vendor's marketing
+   phrase rather than a property of the listing. A test asserts that no
+   generated listing can produce a claim its own validators would reject.
+4. The print description now carries an accurate ink sentence:
+   *"The inks are solvent-free and UV-resistant."* for canvas,
+   *"The ink is permanent UV ink, cured onto the surface."* for wood.
+   Those are claims that can be stood behind.
+
+### CanvasChamp contradicts itself on the wood substrate
+
+Their wood page says the panels are "Chromaluxe Wooden Panels" in one section
+and "MDF composite wood material" in another. The spec calls the surf van and
+cactus prints "print on MDF" and the ship wheel a "wood print", so the seed
+keeps `mdf` for the first two and `wood_panel` for the third. Worth one
+question to the vendor if the Etsy materials list needs to be exact — it is the
+kind of small contradiction §1.1 is about.
+
+### Their recommended input resolution is far above ours
+
+CanvasChamp asks for 1040 DPI input on wood prints. §5.4's limits stay at
+150 DPI good / 100 DPI floor, because those are the spec's numbers and they are
+the right thresholds for judging a master. But it does mean the lost-catalog
+problem is worse than the app currently shows: files that clear our 150 DPI bar
+may still be below what the vendor wants.
 
 ## Answered by the owner before Phase 1
 
@@ -162,9 +196,9 @@ Nothing is blocked on these — each has a working default in place.
 5. **Category for the two western pieces.** The cactus-and-skull and the
    flag-and-skull have no obvious home in the §5.1 enum; both seeded as `other`.
    A `western` category may be worth adding.
-6. **Does CanvasChamp print giclée?** Worth one email. See the giclée decision
-   above — until they confirm in writing, two live listings carry a category
-   claim the app flags.
+6. **Which wood panel does CanvasChamp actually use** — Chromaluxe or MDF
+   composite? Their own pages say both. Only matters for the Etsy materials
+   list being exact.
 7. **No photographs exist in the repo.** Phase 3 builds the in-browser resizing
    and Phase 4 publishes images, but the kiosk and the portfolio will be empty
    until pieces are actually shot.

@@ -8,7 +8,7 @@
 
 import { effectiveRights, printLimits, variantLongEdge } from '../store/schema.js';
 import { withDefaults, priceFloor } from '../store/settings.js';
-import { SUBSTRATE_WORDS, PRINT_SUBSTRATE_WORDS } from './generate.js';
+import { SUBSTRATE_WORDS, PRINT_SUBSTRATE_WORDS, INK_WORDS } from './generate.js';
 
 export const LEVELS = { stop: 3, warn: 2, note: 1 };
 
@@ -283,6 +283,33 @@ export function checkGicleeClaim(listing) {
     + 'Use it only once the print vendor confirms it; Digital Prints is the honest category otherwise.')];
 }
 
+/**
+ * The giclée rule in §5.5 is really a rule about not claiming what the vendor
+ * has not said. "Archival" and "museum quality" are the same kind of claim,
+ * and CanvasChamp's canvas line runs latex ink — durable, but not archival
+ * pigment on a fine-art substrate.
+ */
+export function checkUnsupportedPrintClaims(listing) {
+  if (listing.listing_type !== 'print') return [];
+  const text = [listing.title, listing.description, (listing.materials ?? []).join(' ')]
+    .filter(Boolean).join(' ');
+  const out = [];
+  const ink = INK_WORDS[listing.print_process];
+
+  if (/\barchival\b/i.test(text) && listing.print_process !== 'giclee') {
+    out.push(finding('archival_claim', 'warn', 'description',
+      `"Archival" appears but the process is "${listing.print_process ?? 'unset'}"`
+      + `${ink ? ` (${ink})` : ''}. Archival means pigment ink on a fine-art substrate. `
+      + 'Say what the ink actually is instead — UV-resistant and fade-resistant are claims you can stand behind.'));
+  }
+  if (/museum[- ]quality/i.test(text) && listing.print_process !== 'giclee') {
+    out.push(finding('museum_claim', 'note', 'description',
+      '"Museum quality" is a print vendor\u2019s marketing phrase, not a property of this listing. '
+      + 'It invites a comparison the process will not survive.'));
+  }
+  return out;
+}
+
 export function checkSuppression(listing) {
   if (!listing.suppression_suspected) return [];
   return [finding('suppression', 'warn', 'status',
@@ -306,6 +333,7 @@ export function validateListing(listing, artwork, settings) {
     ...checkPriceFloor(listing, artwork, settings),
     ...checkProcessingVsQuantity(listing),
     ...checkGicleeClaim(listing),
+    ...checkUnsupportedPrintClaims(listing),
     ...checkSuppression(listing),
   ];
   return findings.sort((a, b) => LEVELS[b.level] - LEVELS[a.level]);

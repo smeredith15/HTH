@@ -4,7 +4,7 @@ import {
   validateListing, summarise, checkTitle, checkTags, checkTrademarks,
   checkSubstrateConsistency, checkDimensionConsistency, checkOffsiteRedirects,
   checkRoundVariant, checkPrintResolution, checkRights, checkPriceFloor,
-  checkProcessingVsQuantity, checkGicleeClaim,
+  checkProcessingVsQuantity, checkGicleeClaim, checkUnsupportedPrintClaims,
 } from '../app/listing/validators.js';
 import { newArtwork, newListing } from '../app/store/schema.js';
 import { DEFAULT_SETTINGS as S } from '../app/store/settings.js';
@@ -213,6 +213,28 @@ test('giclée is only allowed once the process is confirmed (§5.5)', () => {
   assert.ok(has(checkGicleeClaim({ description: 'A giclee print.', print_process: 'digital' }), 'giclee_claim'));
   assert.deepEqual(checkGicleeClaim({ category_path: 'Prints > Giclée', print_process: 'giclee' }), []);
   assert.deepEqual(checkGicleeClaim({ category_path: 'Prints > Digital Prints', print_process: 'unknown' }), []);
+});
+
+test('an archival claim needs a giclée process behind it', () => {
+  const base = { listing_type: 'print', description: 'Printed with archival inks.' };
+  // CanvasChamp's canvas line is latex ink — durable, but not archival.
+  assert.ok(has(checkUnsupportedPrintClaims({ ...base, print_process: 'digital' }), 'archival_claim'));
+  assert.ok(has(checkUnsupportedPrintClaims({ ...base, print_process: 'uv_direct' }), 'archival_claim'));
+  assert.ok(has(checkUnsupportedPrintClaims({ ...base, print_process: null }), 'archival_claim'));
+  assert.deepEqual(checkUnsupportedPrintClaims({ ...base, print_process: 'giclee' }), []);
+  // The claim also counts when it is hiding in the materials list.
+  assert.ok(has(checkUnsupportedPrintClaims({
+    listing_type: 'print', print_process: 'digital', materials: ['canvas', 'archival ink'],
+  }), 'archival_claim'));
+});
+
+test('museum quality is flagged as a note, and only on prints', () => {
+  assert.ok(has(checkUnsupportedPrintClaims({
+    listing_type: 'print', print_process: 'digital', description: 'Museum-quality canvas.',
+  }), 'museum_claim'));
+  assert.deepEqual(checkUnsupportedPrintClaims({
+    listing_type: 'original', description: 'Museum-quality.',
+  }), []);
 });
 
 // --- Phase 2 acceptance criteria -------------------------------------------
