@@ -179,6 +179,12 @@ async function boot() {
 
   await start();
   document.body.classList.remove('booting');
+
+  // Last, and never blocking: a failed registration must not stop the app.
+  // The worker is network-first, so it changes nothing while online except
+  // making the app installable and survivable without a signal.
+  const { registerWorker } = await import('./offline.js');
+  registerWorker().catch((err) => console.error(err));
 }
 
 boot().catch((err) => {
