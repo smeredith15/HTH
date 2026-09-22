@@ -47,6 +47,31 @@ export function isProcessable(file) {
   return !!file && /^image\/(jpeg|png|webp|avif|heic|heif)$/i.test(file.type || '');
 }
 
+/**
+ * Formats no browser will decode, whatever the file picker lets you choose.
+ *
+ * These are the archival formats — the ones a print master is most likely to
+ * be saved as. There is no fix inside a browser, so the only useful thing to
+ * do is say so and point at the way round it: the app wants two numbers, and
+ * they can be typed.
+ */
+const UNDECODABLE = {
+  'image/tiff': 'TIFF', 'image/tif': 'TIFF',
+  'image/vnd.adobe.photoshop': 'PSD', 'application/x-photoshop': 'PSD',
+  'image/x-adobe-dng': 'DNG', 'image/x-canon-cr2': 'RAW', 'image/x-nikon-nef': 'RAW',
+  'image/x-sony-arw': 'RAW',
+};
+
+export function undecodableFormat(file) {
+  const type = (file?.type || '').toLowerCase();
+  if (UNDECODABLE[type]) return UNDECODABLE[type];
+  const name = (file?.name || '').toLowerCase();
+  if (/\.(tiff?|psd|psb|dng|cr2|cr3|nef|arw|orf|raf)$/.test(name)) {
+    return name.split('.').pop().toUpperCase();
+  }
+  return null;
+}
+
 /** Bytes to something a person can read. */
 export function readableBytes(bytes) {
   if (!Number.isFinite(bytes)) return '—';
@@ -109,6 +134,14 @@ async function drawTo(source, { width, height }) {
  * large it prints, without a 200 MB TIFF ever entering IndexedDB.
  */
 export async function measureFile(file) {
+  const format = undecodableFormat(file);
+  if (format) {
+    throw new Error(
+      `No browser can read a ${format}, so this cannot measure one. Open the file, read its pixel `
+      + 'dimensions, and type them into the two boxes below — that is all the app needs. '
+      + `Or export a full-size JPEG alongside the ${format} and measure that.`,
+    );
+  }
   if (!isProcessable(file)) {
     throw new Error(`${file?.type || 'That file'} is not an image this browser can read.`);
   }

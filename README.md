@@ -44,7 +44,9 @@ Photos. Under every photo is the biggest print it could honestly support, at
 
 The print master is a separate file — the reference shot cropped to the art, at
 full resolution — so the edit form measures one without storing it: pick the
-file, the app reads its pixel dimensions, fills them in and keeps nothing. Until
+file, the app reads its pixel dimensions, fills them in and keeps nothing. That
+works for JPEG, PNG and WebP; no browser decodes TIFF, PSD or RAW, so for those
+the panel says to type the two numbers in, which is all it wanted anyway. Until
 a master is measured, the largest photo on file stands in as the ceiling, and
 the listing editor says so rather than pretending it is a promise.
 
