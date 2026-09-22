@@ -3,10 +3,10 @@
 import { el, mount, label, pill, toast, confirmDialog, field, select, rerender } from '../ui/dom.js';
 import { saveArtwork } from '../store/artworks.js';
 import {
-  PHOTO_CHECKLIST, SHOOTING_GUIDE, QUALITY_FLAG_LABELS, checklistFor, checklistProgress,
-  addPhoto, removePhoto, urlFor, readableBytes,
+  SHOOTING_GUIDE, QUALITY_FLAG_LABELS, checklistFor, checklistProgress,
+  addPhoto, removePhoto, urlFor, readableBytes, unclaimedImages,
 } from '../images/photos.js';
-import { IMAGE_ROLE, QUALITY_FLAG, printLimits } from '../store/schema.js';
+import { IMAGE_ROLE, QUALITY_FLAG, printLimits, imageLongEdge } from '../store/schema.js';
 import { suggestAlt } from '../store/autofill.js';
 import { openPhoto } from './photo-viewer.js';
 
@@ -29,7 +29,7 @@ async function draw(host, artwork, onChange) {
   releaseUrls();
   const progress = checklistProgress(artwork);
   const rows = checklistFor(artwork);
-  const extras = (artwork.images ?? []).filter((i) => !PHOTO_CHECKLIST.some((c) => c.role === i.role));
+  const extras = unclaimedImages(artwork);
 
   mount(host,
     el('div', { class: 'view-head tight' },
@@ -44,48 +44,73 @@ async function draw(host, artwork, onChange) {
       el('summary', null, 'How to shoot these'),
       el('ul', { class: 'guide-list' }, SHOOTING_GUIDE.map((line) => el('li', { text: line })))),
 
-    el('ul', { class: 'photo-list' },
-      rows.map((row) => photoRow(artwork, row, onChange)),
-      extras.map((image) => photoRow(artwork, {
-        role: image.role, label: label(image.role), why: 'Extra shot.', image, optional: true,
-      }, onChange))),
+    el('ul', { class: 'photo-list' }, rows.map((row) => checklistRow(artwork, row, onChange))),
+
+    // Photos tagged with a role the checklist never asks for. Kept apart so
+    // the six shots that matter stay readable however many extras pile up.
+    extras.length
+      ? el('div', { class: 'extra-photos' },
+        el('h3', null, `Other photographs (${extras.length})`),
+        el('ul', { class: 'photo-list' },
+          extras.map((image) => el('li', { class: 'has-photo' },
+            el('div', { class: 'photo-group' },
+              imageBlock(artwork, image, label(image.role), onChange))))))
+      : null,
 
     (artwork.images ?? []).length
-      ? el('p', { class: 'hint' }, 'Originals are never kept. Each photo is stored as a 2,000 px web version and a 600 px thumbnail, and the original’s pixel size goes to the print-master registry.')
+      ? el('p', { class: 'hint' }, 'Originals are never kept. Each photo is stored as a 2,000 px web version and a 600 px thumbnail, and the original’s pixel size is kept so the app can say how large it prints.')
       : null);
 }
 
-function photoRow(artwork, row, onChange) {
-  // The thumbnail is a button: 64 px is enough to recognise a photo and not
-  // enough to judge one.
-  const thumb = row.image
-    ? el('button', {
-      class: 'photo-thumb', type: 'button',
-      'aria-label': `View the ${row.label.toLowerCase()} photograph full size`,
-      onClick: () => openPhoto(artwork, row.image),
-    })
-    : el('div', { class: 'photo-thumb' });
+/**
+ * One checklist row, with every photo tagged to it. A role is not a single
+ * slot: three raking details at different angles are all worth keeping, and
+ * the row counts as done as soon as the first one lands.
+ */
+function checklistRow(artwork, row, onChange) {
+  const images = row.images ?? (row.image ? [row.image] : []);
+  const heading = el('div', { class: 'row tight' },
+    el('strong', { text: row.label }),
+    row.required ? pill('needed for a print', 'warn') : null,
+    images.length > 1 ? pill(`${images.length} photos`, 'muted') : null,
+    row.optional && !images.length ? pill('never required', 'muted') : null);
 
-  if (row.image) {
-    urlFor(row.image.id, 'thumb').then((url) => {
-      if (url) mount(thumb, el('img', { src: trackUrl(url), alt: row.image.alt || row.label, loading: 'lazy' }));
-      else mount(thumb, el('span', { class: 'muted small' }, 'missing'));
-    });
+  if (!images.length) {
+    return el('li', null,
+      el('div', { class: 'photo-thumb empty', 'aria-hidden': 'true' }),
+      el('div', { class: 'photo-body' },
+        heading,
+        el('p', { class: 'hint', text: row.why })),
+      el('label', { class: 'btn ghost small' }, 'Add',
+        fileInput(artwork, row.role, onChange)));
   }
 
-  return el('li', { class: row.image ? 'has-photo' : '' },
-    row.image ? thumb : el('div', { class: 'photo-thumb empty', 'aria-hidden': 'true' }),
-    el('div', { class: 'photo-body' },
-      el('div', { class: 'row tight' },
-        el('strong', { text: row.label }),
-        row.required ? pill('needed for a print master', 'warn') : null,
-        row.optional && !row.image ? pill('never required', 'muted') : null),
+  return el('li', { class: 'has-photo stacked' },
+    el('div', { class: 'photo-group' },
+      heading,
       el('p', { class: 'hint', text: row.why }),
-      row.image ? imageControls(artwork, row.image, onChange) : null),
-    row.image
-      ? null
-      : el('label', { class: 'btn ghost small' }, 'Add',
-        fileInput(artwork, row.role, onChange)));
+      images.map((image) => imageBlock(artwork, image, row.label, onChange)),
+      el('label', { class: 'btn ghost small' }, 'Add another to this shot',
+        fileInput(artwork, row.role, onChange))));
+}
+
+/** A single photograph: thumbnail, and everything editable about it. */
+function imageBlock(artwork, image, rowLabel, onChange) {
+  // The thumbnail is a button: 64 px is enough to recognise a photo and not
+  // enough to judge one.
+  const thumb = el('button', {
+    class: 'photo-thumb', type: 'button',
+    'aria-label': `View the ${rowLabel.toLowerCase()} photograph full size`,
+    onClick: () => openPhoto(artwork, image),
+  });
+  urlFor(image.id, 'thumb').then((url) => {
+    if (url) mount(thumb, el('img', { src: trackUrl(url), alt: image.alt || rowLabel, loading: 'lazy' }));
+    else mount(thumb, el('span', { class: 'muted small' }, 'missing'));
+  });
+
+  return el('div', { class: 'photo-item' },
+    thumb,
+    el('div', { class: 'photo-body' }, imageControls(artwork, image, onChange)));
 }
 
 function imageControls(artwork, image, onChange) {
@@ -110,6 +135,23 @@ function imageControls(artwork, image, onChange) {
         await patchImage(artwork, image.id, { alt: draft }, onChange);
       },
     }, 'Draft it from the record'),
+    field('Link to the original',
+      el('div', { class: 'row tight' },
+        el('input', {
+          type: 'url', value: image.source_url ?? '',
+          placeholder: 'https://photos.google.com/… or a Drive link',
+          'data-focus-key': `src-${image.id}`,
+          onChange: async (e) => {
+            await patchImage(artwork, image.id, { source_url: e.target.value.trim() || null }, onChange);
+          },
+        }),
+        image.source_url
+          ? el('a', {
+            class: 'btn ghost small', href: image.source_url,
+            target: '_blank', rel: 'noopener noreferrer',
+          }, 'Open ↗')
+          : null),
+      'Private. The app keeps a 2,000 px copy; this is the way back to the full-size file.'),
     el('div', { class: 'two-up' },
       field('Role', select(IMAGE_ROLE.map((r) => [r, label(r)]), image.role, {
         onChange: async (e) => patchImage(artwork, image.id, { role: e.target.value }, onChange),
@@ -139,6 +181,7 @@ function imageControls(artwork, image, onChange) {
       image.original_width_px
         ? ` · original ${image.original_width_px} × ${image.original_height_px} px (${readableBytes(image.original_bytes)})`
         : null),
+    printSizeLine(image),
     el('div', { class: 'row' },
       el('button', { class: 'btn ghost small', type: 'button', onClick: () => openPhoto(artwork, image) }, 'View full size'),
       el('label', { class: 'btn ghost small' }, 'Replace', fileInput(artwork, image.role, onChange, image.id)),
@@ -150,6 +193,21 @@ function imageControls(artwork, image, onChange) {
         toast('Photo deleted');
         onChange();
       } }, 'Delete')));
+}
+
+/**
+ * What this photograph could be printed to, in inches. The number comes from
+ * the original the app measured on the way in, so it is an upper bound: a
+ * reference shot still has wall and frame in it, and cropping to the art takes
+ * those pixels off. 150 DPI is the good number; 100 DPI is the floor, and only
+ * survives because a large piece is seen from across a room.
+ */
+function printSizeLine(image) {
+  const limits = printLimits({ long_edge_px: imageLongEdge(image) });
+  if (!limits) return null;
+  return el('p', { class: limits.at150 < 8 ? 'small warn-text' : 'small' },
+    `Prints to ${limits.at150.toFixed(1)} in on the long edge at 150 DPI`,
+    el('span', { class: 'muted', text: ` · ${limits.at100.toFixed(1)} in at 100 DPI · before cropping` }));
 }
 
 async function patchImage(artwork, imageId, patch, onChange) {
@@ -177,33 +235,7 @@ async function ingest(artwork, file, role, onChange, replaceId) {
     if (replaceId) base = await removePhoto(artwork, replaceId);
     const { image, processed } = await addPhoto(base, file, { role });
 
-    let next = { ...base, images: [...(base.images ?? []), image] };
-
-    // §5.3: offer to record the original's pixel size in the print-master
-    // registry, because that is the number that decides how large it can print.
-    const master = next.print_master ?? {};
-    const longest = Math.max(processed.original.width, processed.original.height);
-    if (role === 'straight_on' && longest > (master.long_edge_px ?? 0)) {
-      const limits = printLimits({ long_edge_px: longest });
-      const ok = await confirmDialog(
-        `That original is ${processed.original.width} × ${processed.original.height} px, which prints to `
-        + `${limits.at150.toFixed(1)} in at 150 DPI. Record it as the print master for this piece?`,
-        { confirmText: 'Record it', tone: 'primary' },
-      );
-      if (ok) {
-        next = { ...next, print_master: {
-          ...master,
-          exists: true,
-          long_edge_px: longest,
-          short_edge_px: Math.min(processed.original.width, processed.original.height),
-          captured_on: new Date().toISOString().slice(0, 10),
-          filename: processed.original.name ?? master.filename ?? null,
-          print_ready: master.print_ready ?? 'yes',
-          capture_notes: master.capture_notes
-            ?? 'Dimensions read from the photo when it was added. The original itself lives outside this repo.',
-        } };
-      }
-    }
+    const next = { ...base, images: [...(base.images ?? []), image] };
 
     await saveArtwork(next);
     const note = processed.web.reducedEdge
@@ -222,9 +254,9 @@ async function ingest(artwork, file, role, onChange, replaceId) {
 }
 
 /**
- * One photo at a time. Each one may raise the print-master question, and a
- * queue of those behind a batch upload would be worse than the friction it
- * saves. The checklist rows are the faster path anyway — they pick the role.
+ * One photo at a time, and it lands as `other` until it is given a role, so a
+ * photo added from here never quietly claims the straight-on slot. The
+ * checklist rows are the faster path — they pick the role for you.
  */
 function addButton(artwork, onChange) {
   return el('label', { class: 'btn primary' }, 'Add a photo',
@@ -233,7 +265,7 @@ function addButton(artwork, onChange) {
       onChange: async (event) => {
         const file = event.target.files?.[0];
         event.target.value = '';
-        if (file) await ingest(artwork, file, 'straight_on', onChange, null);
+        if (file) await ingest(artwork, file, 'other', onChange, null);
       },
     }));
 }

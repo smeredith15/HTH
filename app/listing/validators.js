@@ -6,7 +6,7 @@
 // Pure functions: a listing, its artwork and the settings in, a list of
 // findings out. Each finding is { id, level, field, message }.
 
-import { effectiveRights, printLimits, variantLongEdge } from '../store/schema.js';
+import { effectiveRights, printLimits, printSource, variantLongEdge } from '../store/schema.js';
 import { landedCost, breakEven, priceForMargin, costForVariant } from './print-pricing.js';
 import { withDefaults, priceFloor } from '../store/settings.js';
 import { SUBSTRATE_WORDS, PRINT_SUBSTRATE_WORDS, INK_WORDS } from './generate.js';
@@ -200,28 +200,42 @@ export function checkRoundVariant(listing, artwork) {
     + 'The round crop of the ship wheel cut the handles off.')];
 }
 
-/** §5.4: a variant larger than the master supports. */
+/**
+ * §5.4: a variant larger than the file supports.
+ *
+ * The master is the right number when it has been measured. Until then the
+ * largest reference photo is the best available guess — and a generous one,
+ * because cropping a wall and a frame out of it takes pixels off. Saying
+ * "12 in, and that is optimistic" beats saying nothing.
+ */
 export function checkPrintResolution(listing, artwork) {
   if (listing.listing_type !== 'print') return [];
-  const limits = printLimits(artwork?.print_master);
+  const source = printSource(artwork);
+  const limits = printLimits(source);
   if (!limits) {
     if (!(listing.variants ?? []).length) return [];
     return [finding('print_resolution', 'warn', 'variants',
-      'No master resolution recorded, so there is no way to tell whether these sizes will hold up.')];
+      'No master measured and no photograph on file, so there is no way to tell whether these sizes will hold up.')];
   }
+  const from = source.from === 'master' ? 'the master' : 'the largest photo on file (before cropping)';
   const out = [];
   for (const variant of listing.variants ?? []) {
     const edge = variantLongEdge(variant);
     if (!edge) continue;
     if (edge > limits.at100) {
       out.push(finding('print_resolution', 'stop', 'variants',
-        `${variant.label || `${variant.width_in} × ${variant.height_in}`} needs ${edge} in but the master `
+        `${variant.label || `${variant.width_in} × ${variant.height_in}`} needs ${edge} in but ${from} `
         + `stops at ${limits.at100.toFixed(1)} in even at 100 DPI. This will look soft in the room.`));
     } else if (edge > limits.at150) {
       out.push(finding('print_resolution', 'warn', 'variants',
-        `${variant.label || `${variant.width_in} × ${variant.height_in}`} needs ${edge} in; the master `
+        `${variant.label || `${variant.width_in} × ${variant.height_in}`} needs ${edge} in; ${from} `
         + `supports ${limits.at150.toFixed(1)} in at 150 DPI (${limits.at100.toFixed(1)} in at 100 DPI).`));
     }
+  }
+  if (source.from === 'photo' && out.length === 0 && (listing.variants ?? []).length) {
+    out.push(finding('print_resolution', 'note', 'variants',
+      `No master measured yet. These sizes are checked against ${from}, which `
+      + `reaches ${limits.at150.toFixed(1)} in at 150 DPI. Measure the cropped master to be sure.`));
   }
   return out;
 }

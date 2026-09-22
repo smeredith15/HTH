@@ -29,7 +29,7 @@ export const RIGHTS_FLAG = [
 export const RIGHTS_ANSWER = ['yes', 'ask_first', 'no', 'unknown'];
 export const IMAGE_ROLE = [
   'primary', 'straight_on', 'detail_raking', 'in_room', 'scale',
-  'back_hardware', 'signature', 'process', 'mockup', 'group',
+  'back_hardware', 'signature', 'process', 'mockup', 'group', 'other',
 ];
 export const QUALITY_FLAG = [
   'warm_cast', 'angled', 'low_res', 'compressed', 'blurry', 'watermark',
@@ -75,7 +75,7 @@ export const PRIVATE_ARTWORK_FIELDS = [
 
 export const PRIVATE_IMAGE_FIELDS = [
   'quality_flags', 'original_blob_id', 'original_width_px', 'original_height_px',
-  'original_bytes', 'original_name', 'added_at',
+  'original_bytes', 'original_name', 'added_at', 'source_url',
 ];
 
 // ---------------------------------------------------------------------------
@@ -263,6 +263,41 @@ export function printLimits(printMaster) {
     at150: px / 150,
     at100: px / 100,
   };
+}
+
+/**
+ * The largest edge a photograph was before the app resized it. The original is
+ * never kept, but its size was, and that is the number a print size comes from.
+ */
+export function imageLongEdge(image) {
+  const sides = [
+    image?.original_width_px ?? image?.width_px,
+    image?.original_height_px ?? image?.height_px,
+  ].filter((n) => typeof n === 'number' && n > 0);
+  return sides.length ? Math.max(...sides) : null;
+}
+
+/**
+ * What this piece could actually be printed from today.
+ *
+ * The master when one has been measured — that file is already cropped to the
+ * art, so its number is the real one. Otherwise the largest reference photo on
+ * file, which is an upper bound and not a promise: a reference shot still has
+ * wall, frame and floor in it, and all of that goes when it is cropped.
+ */
+export function printSource(artwork) {
+  const master = artwork?.print_master;
+  if (master?.exists && master.long_edge_px) {
+    return { long_edge_px: master.long_edge_px, from: 'master', cropped: true, image: null };
+  }
+  let best = null;
+  for (const image of artwork?.images ?? []) {
+    const px = imageLongEdge(image);
+    if (px && (!best || px > best.long_edge_px)) {
+      best = { long_edge_px: px, from: 'photo', cropped: false, image };
+    }
+  }
+  return best;
 }
 
 /**

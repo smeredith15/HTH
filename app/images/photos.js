@@ -5,19 +5,20 @@
 // the paths recorded here are where they will land.
 
 import { put, get, remove, getAll } from '../store/db.js';
-import { processPhoto, readableBytes } from './resize.js';
+import { processPhoto, measureFile, readableBytes } from './resize.js';
 import { IMAGE_ROLE, QUALITY_FLAG } from '../store/schema.js';
 
 /**
- * §6.2's checklist, in the order it should be worked through. `required`
- * marks the one the print master depends on; the process shot is explicitly
- * never required, because §2.1 says documenting process slows the work.
+ * §6.2's checklist, in the order it should be worked through. Every row takes
+ * as many photos as you want to give it — the first is the one the checklist
+ * counts, the rest sit under it. The process shot is explicitly never
+ * required, because §2.1 says documenting process slows the work.
  */
 export const PHOTO_CHECKLIST = [
   {
     role: 'straight_on',
     label: 'Straight-on, daylight, plain wall',
-    why: 'This is the print master. Without it the piece can never be reproduced.',
+    why: 'The reference shot, and what a print gets cropped out of. Without it the piece can never be reproduced.',
     required: true,
   },
   {
@@ -87,7 +88,7 @@ export function nextImageId(artwork, role) {
  * The original is never stored — only its pixel dimensions, which are what
  * decide the print-size limit (§5.4).
  */
-export async function addPhoto(artwork, file, { role = 'straight_on', alt = null } = {}) {
+export async function addPhoto(artwork, file, { role = 'straight_on', alt = null, sourceUrl = null } = {}) {
   const processed = await processPhoto(file);
   const id = nextImageId(artwork, role);
 
@@ -103,6 +104,9 @@ export async function addPhoto(artwork, file, { role = 'straight_on', alt = null
     width_px: processed.web.width,
     height_px: processed.web.height,
     alt,
+    // Where the untouched original lives, if anywhere. The app holds a 2,000 px
+    // web copy; this is the way back to the file that copy came from.
+    source_url: sourceUrl,
     kiosk_order: (artwork.images ?? []).length,
     in_kiosk: true,
     quality_flags: [],
@@ -147,12 +151,24 @@ export async function orphanedBlobs(artworks) {
 
 // --- checklist state -------------------------------------------------------
 
+/**
+ * Every checklist row with every photo tagged to it. A role holds as many
+ * photos as you give it: three raking details at different angles is a better
+ * record than one, and the row counts as done either way. `image` is the first
+ * of them, which is what the progress meter and the completeness checks read.
+ */
 export function checklistFor(artwork) {
   const images = artwork.images ?? [];
-  return PHOTO_CHECKLIST.map((item) => ({
-    ...item,
-    image: images.find((i) => i.role === item.role) ?? null,
-  }));
+  return PHOTO_CHECKLIST.map((item) => {
+    const matched = images.filter((i) => i.role === item.role);
+    return { ...item, images: matched, image: matched[0] ?? null };
+  });
+}
+
+/** Photos carrying a role the checklist never asks for — `other` and friends. */
+export function unclaimedImages(artwork) {
+  const asked = new Set(PHOTO_CHECKLIST.map((c) => c.role));
+  return (artwork.images ?? []).filter((i) => !asked.has(i.role));
 }
 
 /** Only the shots that matter count towards "done". */
@@ -166,4 +182,4 @@ export function missingAltText(artwork) {
   return (artwork.images ?? []).filter((i) => !i.alt?.trim());
 }
 
-export { readableBytes, IMAGE_ROLE, QUALITY_FLAG };
+export { readableBytes, measureFile, IMAGE_ROLE, QUALITY_FLAG };

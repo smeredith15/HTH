@@ -102,6 +102,24 @@ async function drawTo(source, { width, height }) {
 }
 
 /**
+ * Read a file's pixel dimensions and keep nothing.
+ *
+ * The print master is a separate, cropped file that lives outside this app —
+ * on a drive or in cloud storage. This measures one so the record knows how
+ * large it prints, without a 200 MB TIFF ever entering IndexedDB.
+ */
+export async function measureFile(file) {
+  if (!isProcessable(file)) {
+    throw new Error(`${file?.type || 'That file'} is not an image this browser can read.`);
+  }
+  const source = await decode(file);
+  const width = source.width ?? source.naturalWidth;
+  const height = source.height ?? source.naturalHeight;
+  source.close?.();
+  return { width, height, bytes: file.size ?? null, name: file.name ?? null };
+}
+
+/**
  * Encode at the best quality that still fits the budget, stepping down until
  * it does. Returns the smallest attempt if none fits, because a slightly
  * oversized file beats no file.
