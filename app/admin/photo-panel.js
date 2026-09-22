@@ -1,6 +1,6 @@
 // The photo checklist on an artwork (SPEC §6.2).
 
-import { el, mount, label, pill, toast, confirmDialog, field, select } from '../ui/dom.js';
+import { el, mount, label, pill, toast, confirmDialog, field, select, rerender } from '../ui/dom.js';
 import { saveArtwork } from '../store/artworks.js';
 import {
   PHOTO_CHECKLIST, SHOOTING_GUIDE, QUALITY_FLAG_LABELS, checklistFor, checklistProgress,
@@ -90,6 +90,9 @@ function photoRow(artwork, row, onChange) {
 function imageControls(artwork, image, onChange) {
   const altInput = el('input', {
     type: 'text', value: image.alt ?? '', placeholder: 'Describe it for someone who cannot see it',
+    // The alt-text warning and the completeness meter live outside this panel,
+    // so the screen does get rebuilt — but the caret comes back with it.
+    'data-focus-key': `alt-${image.id}`,
     onChange: async (e) => {
       await patchImage(artwork, image.id, { alt: e.target.value || null }, onChange);
     },
@@ -142,7 +145,7 @@ function imageControls(artwork, image, onChange) {
 async function patchImage(artwork, imageId, patch, onChange) {
   const images = (artwork.images ?? []).map((i) => (i.id === imageId ? { ...i, ...patch } : i));
   await saveArtwork({ ...artwork, images });
-  onChange();
+  await rerender(onChange);
 }
 
 function fileInput(artwork, role, onChange, replaceId = null) {

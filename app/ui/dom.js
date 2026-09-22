@@ -92,6 +92,35 @@ export function select(options, value, props = {}) {
   return node;
 }
 
+/**
+ * Rebuild a screen without throwing away where the person was.
+ *
+ * Re-rendering a whole view is sometimes the honest thing to do, but it
+ * destroys the element holding the caret and scrolls back to the top. Give an
+ * input a `data-focus-key` and this puts the cursor back where it was,
+ * selection and all.
+ */
+export async function rerender(build) {
+  const active = document.activeElement;
+  const key = active?.getAttribute?.('data-focus-key') ?? null;
+  const start = active?.selectionStart ?? null;
+  const end = active?.selectionEnd ?? null;
+  const top = window.scrollY;
+
+  await build();
+
+  requestAnimationFrame(() => {
+    window.scrollTo(0, top);
+    if (!key) return;
+    const next = document.querySelector(`[data-focus-key="${CSS.escape(key)}"]`);
+    if (!next) return;
+    next.focus({ preventScroll: true });
+    if (start !== null && typeof next.setSelectionRange === 'function') {
+      try { next.setSelectionRange(start, end); } catch { /* not a text input */ }
+    }
+  });
+}
+
 let toastTimer = null;
 export function toast(message, tone = '') {
   let host = document.querySelector('.toast');

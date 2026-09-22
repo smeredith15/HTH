@@ -293,6 +293,32 @@ that says nothing about photographs is not saying "delete them". Only a full
 export resets the "last exported" clock, because only a full export is a
 backup.
 
+## Editing must not fight the person editing
+
+Every field on the print-cost screen saved by re-rendering the entire view —
+thirteen full rebuilds. Each one destroyed the input holding the caret and
+scrolled back to the top, so entering forty-eight lab prices meant being thrown
+to the top of the page forty-eight times. The app was fighting the one job it
+exists to make easy.
+
+The rule now: **a field edit never rebuilds a screen.**
+
+- Typing updates the figures that depend on it, in place, as you type.
+- Blur saves to IndexedDB and refreshes only the panels that read across rows —
+  the count, the anomalies, the lab comparison.
+- A rebuild is for structural change only: adding or removing a size, importing
+  a CSV, switching a filter. Those go through `rebuild()`, which puts the scroll
+  position back.
+
+Where a rebuild is genuinely the honest answer — alt text changes the warning
+and the completeness meter, both of which live outside the photo panel —
+`rerender()` in `ui/dom.js` restores scroll, focus and the caret position. An
+input opts in with `data-focus-key`.
+
+`tests/focus`-style browser checks now assert the concrete symptom: the same
+DOM node still holds focus after typing, and the scroll position moves by less
+than 40 px when a field is left.
+
 ## Phase 6 — money
 
 ### A hub, so the nav stays at six

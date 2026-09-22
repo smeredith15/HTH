@@ -16,6 +16,35 @@ import {
 
 const state = { hideUnpriced: false };
 
+/**
+ * Typing into a cost cell used to rebuild the entire screen, which threw the
+ * page back to the top and took the cursor with it. Edits now update only the
+ * figures that depend on them; the screen is rebuilt only when rows are added
+ * or removed, and even then the scroll position is kept.
+ */
+let live = null;
+
+function refreshDependents() {
+  if (!live) return;
+  const priced = live.rows.filter((r) => Number(r.unit_cost) > 0).length;
+  mount(live.count, `${priced} of ${live.rows.length} sizes priced`);
+  mount(live.anomalies, anomalyPanel(live.rows, live.host));
+  mount(live.comparison, comparisonPanel(live.rows, live.vendors, live.settings));
+}
+
+function refreshEveryRow() {
+  if (!live) return;
+  for (const refresh of live.rowRefreshers) refresh();
+  refreshDependents();
+}
+
+/** Rebuilding is only for structural changes, and it should not lose your place. */
+async function rebuild(host) {
+  const top = window.scrollY;
+  await renderPrintCosts(host);
+  requestAnimationFrame(() => window.scrollTo(0, top));
+}
+
 export async function renderPrintCosts(host) {
   const [rows, vendors, settings] = await Promise.all([
     listPrintCosts(), listPrintVendors(), loadSettings(),
@@ -23,11 +52,16 @@ export async function renderPrintCosts(host) {
   const byName = new Map(vendors.map((v) => [v.name, v]));
   const priced = rows.filter((r) => Number(r.unit_cost) > 0);
 
+  const count = el('p', { class: 'muted', text: `${priced.length} of ${rows.length} sizes priced` });
+  const anomalies = el('div');
+  const comparison = el('div');
+  live = { rows, vendors, settings, byName, host, count, anomalies, comparison, rowRefreshers: [] };
+
   mount(host,
     el('div', { class: 'view-head' },
       el('div', null,
         el('h1', null, 'Print costs'),
-        el('p', { class: 'muted', text: `${priced.length} of ${rows.length} sizes priced` })),
+        count),
       el('div', { class: 'row' },
         el('button', { class: 'btn ghost', type: 'button', onClick: () => downloadCSV(rows) }, 'Download CSV'),
         csvUploadButton(host))),
@@ -40,10 +74,10 @@ export async function renderPrintCosts(host) {
       el('p', { class: 'hint' }, 'Faster on a desktop: download the CSV, fill the unit_cost column in a spreadsheet, and upload it again. Only the columns you send are changed.'),
       el('label', { class: 'check' },
         el('input', { type: 'checkbox', checked: state.hideUnpriced,
-          onChange: (e) => { state.hideUnpriced = e.target.checked; renderPrintCosts(host); } }),
+          onChange: (e) => { state.hideUnpriced = e.target.checked; rebuild(host); } }),
         el('span', null, 'Hide the sizes I have not priced'))),
 
-    anomalyPanel(rows, host),
+    anomalies,
 
     assumptionsPanel(settings, host),
 
@@ -51,7 +85,10 @@ export async function renderPrintCosts(host) {
 
     vendorPanel(vendors, host),
 
-    priced.length ? comparisonPanel(rows, vendors, settings) : null);
+    comparison);
+
+  mount(anomalies, anomalyPanel(rows, host));
+  mount(comparison, comparisonPanel(rows, vendors, settings));
 }
 
 function anomalyPanel(rows, host) {
@@ -66,8 +103,10 @@ function anomalyPanel(rows, host) {
       el('button', {
         class: 'btn ghost small', type: 'button',
         onClick: async () => {
-          await savePrintCost({ ...byId.get(a.id), cost_confirmed_on: new Date().toISOString().slice(0, 10) });
-          renderPrintCosts(host);
+          const target = byId.get(a.id);
+          Object.assign(target, { cost_confirmed_on: new Date().toISOString().slice(0, 10) });
+          await savePrintCost(target);
+          refreshDependents();
         },
       }, 'That price is right')))));
 }
@@ -75,10 +114,12 @@ function anomalyPanel(rows, host) {
 function assumptionsPanel(settings, host) {
   const num = (key, labelText, hint, step = '0.01') => field(labelText, el('input', {
     type: 'number', step, inputMode: 'decimal', value: settings[key] ?? '',
-    onChange: async (e) => {
-      await saveSettings({ ...settings, [key]: e.target.value === '' ? null : Number(e.target.value) });
-      renderPrintCosts(host);
+    onInput: (e) => {
+      // Every landed cost depends on these, so the table follows as you type.
+      settings[key] = e.target.value === '' ? null : Number(e.target.value);
+      refreshEveryRow();
     },
+    onChange: async () => { await saveSettings(settings); },
   }), hint);
 
   return el('section', { class: 'panel' },
@@ -89,10 +130,11 @@ function assumptionsPanel(settings, host) {
       field('Target margin (%)', el('input', {
         type: 'number', step: '1', min: '0', max: '90', inputMode: 'numeric',
         value: Math.round((settings.target_print_margin ?? 0) * 100),
-        onChange: async (e) => {
-          await saveSettings({ ...settings, target_print_margin: Number(e.target.value) / 100 });
-          renderPrintCosts(host);
+        onInput: (e) => {
+          settings.target_print_margin = Number(e.target.value) / 100;
+          refreshEveryRow();
         },
+        onChange: async () => { await saveSettings(settings); },
       }), 'Profit as a share of the sale price.')));
 }
 
@@ -102,9 +144,7 @@ function linePanel(line, rows, vendor, settings, host) {
   if (state.hideUnpriced) lineRows = lineRows.filter((r) => Number(r.unit_cost) > 0);
   if (!lineRows.length) return null;
 
-  const body = el('tbody');
-  const fill = () => mount(body, lineRows.map((row) => costRow(row, vendor, settings, host, fill)));
-  fill();
+  const body = el('tbody', null, lineRows.map((row) => costRow(row, vendor, settings, host)));
 
   return el('section', { class: 'panel' },
     el('h2', null, `${line.vendor} — ${line.product}`),
@@ -130,53 +170,65 @@ function linePanel(line, rows, vendor, settings, host) {
     el('button', { class: 'btn ghost small', type: 'button', onClick: () => addSize(line, host) }, '+ Add a size'));
 }
 
-function costRow(row, vendor, settings, host, refill) {
-  const cells = el('tr');
-  const derived = el('span');
+/**
+ * One size. The three derived cells refresh in place as you type, and saving
+ * happens on blur without touching the DOM you are standing in.
+ */
+function costRow(row, vendor, settings, host) {
+  const mountText = el('span', { class: 'muted small' });
+  const landedCell = el('td');
+  const breakEvenCell = el('td', { class: 'muted' });
+  const targetCell = el('td');
 
-  const recompute = () => {
+  const refresh = () => {
     const cost = landedCost(row, vendor, settings);
-    if (!cost) return mount(derived, el('span', { class: 'muted', text: '—' }));
-    return mount(derived, el('span', { text: money(cost.total) }));
+    const target = cost ? priceForMargin(cost, settings, Number(settings.target_print_margin)) : null;
+    mount(landedCell, cost ? money(cost.total) : el('span', { class: 'muted', text: '—' }));
+    mount(breakEvenCell, cost ? money(breakEven(cost, settings)) : '—');
+    mount(targetCell, target
+      ? el('strong', { text: money(target) })
+      : el('span', { class: 'muted', text: '—' }));
+    mountText.textContent = row.mounted ? money(finishingCost(row)) : 'bare';
+  };
+  live?.rowRefreshers.push(refresh);
+
+  const save = async (patch = {}) => {
+    Object.assign(row, patch);
+    await savePrintCost({ ...row, checked_on: row.checked_on ?? new Date().toISOString().slice(0, 10) });
+    refreshDependents();
   };
 
   const numberCell = (key, step = '0.01') => el('td', null, el('input', {
     type: 'number', step, inputMode: 'decimal', value: row[key] ?? '',
     'aria-label': `${key} for ${sizeLabel(row)}`,
-    onInput: (e) => { row[key] = e.target.value === '' ? null : Number(e.target.value); recompute(); },
-    onChange: async () => {
-      await savePrintCost({ ...row, checked_on: row.checked_on ?? new Date().toISOString().slice(0, 10) });
-      renderPrintCosts(host);
-    },
+    onInput: (e) => { row[key] = e.target.value === '' ? null : Number(e.target.value); refresh(); },
+    onChange: () => save(),
   }));
 
-  const cost = landedCost(row, vendor, settings);
-  const target = priceForMargin(cost, settings, Number(settings.target_print_margin));
-
-  cells.append(
+  const cells = el('tr', null,
     el('td', null,
       el('span', { text: sizeLabel(row) }),
       row.note ? el('span', { class: 'muted small', text: ` ${row.note}` }) : null),
     numberCell('unit_cost'),
     numberCell('ship_each'),
-    el('td', null, mountCell(row, host)),
-    el('td', null, recompute() || derived),
-    el('td', { class: 'muted', text: cost ? money(breakEven(cost, settings)) : '—' }),
-    el('td', null, target ? el('strong', { text: money(target) }) : el('span', { class: 'muted', text: '—' })),
+    el('td', null, mountCell(row, mountText, refresh, save)),
+    landedCell,
+    breakEvenCell,
+    targetCell,
     el('td', null, el('input', {
       type: 'number', step: '1', inputMode: 'numeric', value: row.lead_days ?? '',
       'aria-label': `Lead days for ${sizeLabel(row)}`,
-      onChange: async (e) => {
-        await savePrintCost({ ...row, lead_days: e.target.value === '' ? null : Number(e.target.value) });
-      },
+      onChange: (e) => save({ lead_days: e.target.value === '' ? null : Number(e.target.value) }),
     })),
     el('td', null, el('button', {
       class: 'btn ghost small', type: 'button', 'aria-label': `Remove ${sizeLabel(row)}`,
       onClick: async () => {
         await deletePrintCost(row.id);
-        renderPrintCosts(host);
+        rebuild(host); // structural, so a rebuild is right
       },
     }, '×')));
+
+  refresh();
   return cells;
 }
 
@@ -185,31 +237,32 @@ function costRow(row, vendor, settings, host, refill) {
  * The checkbox is the useful control; the number beside it is what that rule
  * currently works out to, and can be typed over when the rule is wrong.
  */
-function mountCell(row, host) {
+function mountCell(row, mountText, refresh, save) {
   if (!row.finishing_pct && row.finishing_cost === null) {
     return el('span', { class: 'muted small', text: 'included' });
   }
-  const derived = finishingCost(row);
   return el('div', { class: 'mount-cell' },
     el('label', { class: 'check tight' },
       el('input', {
         type: 'checkbox', checked: !!row.mounted,
         'aria-label': `Mount the ${sizeLabel(row)} print`,
         onChange: async (e) => {
-          await savePrintCost({ ...row, mounted: e.target.checked });
-          renderPrintCosts(host);
+          row.mounted = e.target.checked;
+          refresh();
+          await save();
         },
       }),
-      el('span', { class: 'muted small', text: row.mounted ? money(derived) : 'bare' })),
+      mountText),
     el('input', {
       type: 'number', step: '0.01', inputMode: 'decimal',
       value: row.finishing_cost ?? '',
       placeholder: row.finishing_pct ? `${Math.round(row.finishing_pct * 100)}%` : '',
       'aria-label': `Flat mounting cost for ${sizeLabel(row)}`,
-      onChange: async (e) => {
-        await savePrintCost({ ...row, finishing_cost: e.target.value === '' ? null : Number(e.target.value) });
-        renderPrintCosts(host);
+      onInput: (e) => {
+        row.finishing_cost = e.target.value === '' ? null : Number(e.target.value);
+        refresh();
       },
+      onChange: () => save(),
     }));
 }
 
@@ -221,7 +274,12 @@ function vendorPanel(vendors, host) {
       vendor.url ? el('p', null, el('a', { href: vendor.url, target: '_blank', rel: 'noopener noreferrer', text: vendor.url })) : null,
       field('How it reaches the buyer', select(
         FULFILMENT.map((f) => [f, FULFILMENT_LABELS[f]]), vendor.fulfilment,
-        { onChange: async (e) => { await savePrintVendor({ ...vendor, fulfilment: e.target.value }); renderPrintCosts(host); } },
+        { onChange: async (e) => {
+          // Fulfilment changes which postage legs apply, so every row moves.
+          vendor.fulfilment = e.target.value;
+          await savePrintVendor(vendor);
+          refreshEveryRow();
+        } },
       ), 'Decides which postage you actually pay for.'),
       field('Notes', el('textarea', {
         rows: 3, value: vendor.notes ?? '',
@@ -235,8 +293,9 @@ function vendorPanel(vendors, host) {
         field('Proof approved', el('input', {
           type: 'date', value: vendor.quality_checked_on ?? '',
           onChange: async (e) => {
-            await savePrintVendor({ ...vendor, quality_checked_on: e.target.value || null });
-            renderPrintCosts(host);
+            vendor.quality_checked_on = e.target.value || null;
+            await savePrintVendor(vendor);
+            refreshDependents();
           },
         }), 'The date you held one of their prints and were happy with it. Until then the comparison says so.')),
       vendor.quality_checked_on
@@ -324,7 +383,7 @@ function csvUploadButton(host) {
           if (ok) {
             await putMany('print_costs', result.updated.map((r) => ({ ...r, updated_at: new Date().toISOString() })));
             toast(`Updated ${result.updated.length} rows.`, 'ok');
-            renderPrintCosts(host);
+            rebuild(host);
           }
         }
       } catch (err) {
@@ -344,7 +403,7 @@ async function addSize(line, host) {
       event.preventDefault();
       await addPrintCostRow(line.key, Number(w.value), Number(h.value));
       dialog.close();
-      renderPrintCosts(host);
+      rebuild(host);
     } },
       el('h2', { text: `Add a size to ${line.product}` }),
       el('div', { class: 'two-up' },

@@ -1,13 +1,15 @@
 // On hand, and the fair pack list (SPEC §6.3).
 
-import { el, mount, money, label, dimensions, toast } from '../ui/dom.js';
+import { el, mount, money, dimensions, toast, rerender } from '../ui/dom.js';
 import { listArtworks } from '../store/artworks.js';
 import { loadSettings, patchSettings } from '../store/db.js';
 import { quickSale } from '../store/sales.js';
 
 export async function renderInventory(host) {
   const [artworks, settings] = await Promise.all([listArtworks(), loadSettings()]);
-  const reload = () => renderInventory(host);
+  // Ticking a box changes the totals above the table, so the view is rebuilt —
+  // with the scroll position kept, because this list is long.
+  const reload = () => rerender(() => renderInventory(host));
   const onHand = artworks.filter((a) => a.on_hand).sort((a, b) => a.title.localeCompare(b.title));
   const packed = new Set(settings.fair_pack ?? []);
   const packedPieces = onHand.filter((a) => packed.has(a.id));
