@@ -1,4 +1,5 @@
-// Generate every app icon from the shop's mark.
+// Generate every app icon from the shop's mark — a diver in a swan dive, seen
+// head on, arms swept wide.
 //
 //   node tools/logo.mjs
 //
@@ -91,7 +92,8 @@ await render('favicon-16.png', 16, { background: bg });
 // Small enough for the header without shipping a 512 to draw a 22 px mark.
 await render('logo-64.png', 64, { background: bg });
 // Maskable: Android crops to the inner 80%, so the mark shrinks and the ground
-// fills what the crop would otherwise take out of the disc.
+// fills what the crop would otherwise take out of the disc. The arms reach 74%
+// of the way to the frame edge, so 78% keeps the fingertips with a little room.
 await render('icon-maskable-512.png', 512, { scale: 0.78, background: bg });
 await browser.close();
 

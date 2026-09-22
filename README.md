@@ -131,7 +131,8 @@ recovery path has to work from a phone, where nobody has developer tools.
 Still missing from §10: "Prepare for offline" and caching `data/catalog.json`
 with its images, both of which need Phase 4 to have published a catalog.
 
-The app icons and the header mark are generated from `icons/logo-source.png`
+The shop's mark is a diver in a swan dive, seen head on. The app icons and the
+header mark are generated from `icons/logo-source.png`
 by `node tools/logo.mjs`, which flattens the mark onto its own dark ring — it
 is a circle on transparency, and Apple ignores transparency while a transparent
 favicon disappears into a light browser theme. The maskable icon is inset to
