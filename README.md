@@ -46,7 +46,7 @@ Print masters are never committed. The registry records where they live.
 | Phase | | |
 |---|---|---|
 | 1 | Catalog and storage | **done** |
-| 2 | Listing generator and validators | not started |
+| 2 | Listing generator and validators | **done** |
 | 3 | Images and print masters | not started |
 | 4 | Publish, kiosk, public portfolio | not started |
 | 5 | Offline / PWA | not started |
@@ -58,6 +58,18 @@ Print masters are never committed. The registry records where they live.
 Artwork CRUD, quick add, duplicate-as-new with the restricted field copy, the
 IndexedDB layer, export and merge-aware import, persistent-storage request, the
 last-exported warning, and the Appendix A seed import.
+
+### What Phase 2 covers
+
+The listing generator and all 17 validators from §7.4, running live as you
+type. Editable B.6 templates, title and per-tag character counters, copy
+buttons for every output, price floor and implied hourly against the record,
+relisting that keeps the old listing as history, and a "listings needing
+attention" panel on the home screen.
+
+Seeded with B.7's drafted titles and tags for all eight live listings, plus the
+three custom drafts B.8 asks for — pet, family and sports, at the §8.2 prices,
+quantity 3, processing 6–8 weeks.
 
 ## Layout
 

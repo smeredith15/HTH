@@ -7,6 +7,33 @@ Anything in here is reversible. Say the word and it changes.
 
 ---
 
+## Answered by the owner before Phase 2
+
+| Question | Answer |
+|---|---|
+| Print vendor / giclée | **CanvasChamp** (canvaschamp.com). Recorded as `print_vendor` on the three canvas listings. The process stays `unknown` — see below. |
+| `{{history_paragraph}}` source | **A new public `history` field.** Separate from private `notes`. |
+| Split the custom listing | **Yes, seed all three** (pet, family, sports) as drafts from B.7. |
+| Branch | Phase 1 merged to `main`; Phase 2 built on a branch restarted from it. |
+
+### The giclée decision
+
+§5.5 says to use `giclee` "only after the print vendor confirms it". A vendor's
+product page is not that confirmation, and CanvasChamp is a consumer canvas
+printer rather than a fine-art press. So:
+
+- `print_vendor: 'CanvasChamp'` on the toucan, whale and flag listings.
+- `print_process: 'unknown'` on all three.
+- The giclée validator therefore **fires on the whale and the flag**, both of
+  which currently sit in Etsy's *Giclée* category.
+
+The cheap fix is moving both to *Digital Prints*, which is what
+`suggestCategoryPath` proposes. The other fix is asking CanvasChamp, in
+writing, whether they print with archival pigment inks on a fine-art substrate
+— and if they say yes, set the process to `giclee` in the listing screen and
+the warning goes away. Until one of those happens the app keeps flagging it,
+because the claim is on a public listing.
+
 ## Answered by the owner before Phase 1
 
 | Question | Answer |
@@ -33,6 +60,28 @@ Consequences already in the code:
 ---
 
 ## Assumptions made without asking
+
+### 0. Two B.6 templates deviate from the spec text
+
+B.6's print template reads *"The original measured {{orig_width}} ×
+{{orig_height}} in and took about {{hours}} hours."* — but §2.1 makes every
+field optional, and most seeded pieces have no hours. Rendered verbatim that
+produces *"took about  hours."*, and a piece with no dimensions produces
+*"Measures  ×  in."*
+
+The fragile placeholders are therefore composed sentences that vanish cleanly
+when the record cannot supply them:
+
+| Was | Now |
+|---|---|
+| `Measures {{width_in}} × {{height_in}} × {{depth_in}} in. {{substrate_note}}.` | `{{measures_sentence}} {{substrate_note_sentence}}` |
+| `The original measured {{orig_width}} × {{orig_height}} in and took about {{hours}} hours.` | `{{original_size_sentence}}` |
+
+The raw values are still in the template context, so a hand-edited template can
+use them. Templates are editable in Settings and resettable to the B.6 seeds.
+
+The renderer also fixes article agreement — B.6's *"a {{print_substrate}}
+print"* produced *"a MDF print"*.
 
 ### 1. Seed visibility
 
@@ -113,11 +162,28 @@ Nothing is blocked on these — each has a working default in place.
 5. **Category for the two western pieces.** The cactus-and-skull and the
    flag-and-skull have no obvious home in the §5.1 enum; both seeded as `other`.
    A `western` category may be worth adding.
-6. **No photographs exist in the repo.** Phase 3 builds the in-browser resizing
+6. **Does CanvasChamp print giclée?** Worth one email. See the giclée decision
+   above — until they confirm in writing, two live listings carry a category
+   claim the app flags.
+7. **No photographs exist in the repo.** Phase 3 builds the in-browser resizing
    and Phase 4 publishes images, but the kiosk and the portfolio will be empty
    until pieces are actually shot.
 
 ---
+
+### 7. Holiday cutoff
+
+B.6's custom template needs `{{holiday_cutoff}}` and nothing supplies a date.
+Seeded at **23 October 2026** — Christmas minus the 8-week worst case, minus a
+week to ship. Editable in Settings → Custom listings.
+
+### 8. Seed catch-up on an already-seeded device
+
+Phase 1 seeded 10 listings; Phase 2 adds three drafts and B.7's copy. Rather
+than leave existing devices behind, the app tops itself up on boot: a seed row
+is refreshed **only while its `updated_at` is still the 2026-09-22 seed date**,
+which means it has never been touched. Anything edited keeps its own version.
+Verified in a browser against a simulated Phase 1 database.
 
 ## Spec issues found
 
@@ -135,7 +201,19 @@ Recorded rather than fixed unilaterally.
    **V**. The builder has to strip per-image private fields too, not just
    top-level ones. `PUBLIC_IMAGE_FIELDS` in `app/store/schema.js` is the
    allow-list for that; the Phase 4 test will assert against both.
-3. **Both field lists are allow-lists, not deny-lists.** A field added to the
+3. **§7.4 lists 17 checks, not 16.** Counted: title length, title separators,
+   title opener, tag count, tag length, tag form, tag duplicates, trademark
+   terms, substrate consistency, dimension consistency, off-site redirects,
+   round variant, print resolution, rights, price floor, processing vs
+   quantity, giclée claim. All 17 are implemented, plus one the spec implies
+   but does not tabulate: a suppression-suspected listing says so.
+4. **The substrate validator needs to know about frames.** §7.4 says the
+   description must not mention a substrate word other than the listing's own,
+   but the golf bag is birch *in a pine frame* and the Cilleyville bridge hangs
+   in a *gold metal float*. Taken literally the rule flags both. The
+   implementation masks `frame_material`, `hanging_hardware` and `finish` out of
+   the text before scanning.
+5. **Both field lists are allow-lists, not deny-lists.** A field added to the
    model later is private until someone deliberately adds its name to
    `PUBLIC_ARTWORK_FIELDS`. That is the safer default for §2.3's "impossible to
    publish by accident", and `tests/schema.test.js` asserts the two lists never

@@ -8,7 +8,7 @@ import {
 
 test('every Appendix A artwork loads', () => {
   assert.equal(SEED_ARTWORKS.length, 61, 'A.1 9 + A.2 23 + A.3 11 + A.4 18');
-  assert.equal(SEED_LISTINGS.length, 10);
+  assert.equal(SEED_LISTINGS.length, 13, "10 live + 3 custom drafts (B.8)");
   assert.equal(SEED_BACKLOG.length, 11, 'Appendix B.8 backlog');
 });
 

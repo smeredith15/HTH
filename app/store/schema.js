@@ -37,6 +37,13 @@ export const QUALITY_FLAG = [
 ];
 export const PRINT_READY = ['yes', 'needs_retouch', 'no'];
 
+// --- listings (§5.5) -------------------------------------------------------
+export const LISTING_CHANNEL = ['etsy', 'fair', 'offline', 'website'];
+export const LISTING_TYPE = ['original', 'print', 'custom'];
+export const PRINT_SUBSTRATE = ['canvas', 'mdf', 'wood_panel', 'paper', 'metal'];
+export const PRINT_PROCESS = ['giclee', 'uv_direct', 'digital', 'unknown'];
+export const LISTING_STATUS = ['draft', 'active', 'inactive', 'sold_out', 'deleted', 'relisted'];
+
 // ---------------------------------------------------------------------------
 // Public / private field split (SPEC §5.1, §5.3)
 //
@@ -49,7 +56,7 @@ export const PUBLIC_ARTWORK_FIELDS = [
   'id', 'title', 'status', 'disposition', 'category', 'series', 'subject_name',
   'subject_location', 'year', 'width_in', 'height_in', 'depth_in', 'shape',
   'substrate', 'substrate_note', 'framed', 'frame_material', 'hanging_hardware',
-  'finish', 'techniques', 'colors', 'asking_price', 'blurb', 'images',
+  'finish', 'techniques', 'colors', 'asking_price', 'blurb', 'history', 'images',
   'primary_listing_url',
 ];
 
@@ -137,6 +144,10 @@ export function newArtwork(patch = {}) {
     asking_price: null,
     show_price_in_kiosk: true,
     blurb: null,
+    // Public listing copy — the {{history_paragraph}} of the §B.6 original
+    // template. Kept apart from `notes`, which are private and full of
+    // reminders that must never reach an Etsy description.
+    history: null,
     notes: null,
     reference_source: null,
     rights: newRights(),
@@ -191,7 +202,7 @@ export const DUPLICABLE_FIELDS = [
 ];
 
 export const NEVER_DUPLICATED_FIELDS = [
-  'id', 'title', 'width_in', 'height_in', 'depth_in', 'blurb', 'notes',
+  'id', 'title', 'width_in', 'height_in', 'depth_in', 'blurb', 'history', 'notes',
   'asking_price', 'images', 'hours', 'hours_sessions', 'rights',
   'print_master', 'materials_cost', 'primary_listing_url', 'subject_name',
   'subject_location', 'year', 'date_finished', 'commission_id', 'colors',
@@ -281,4 +292,57 @@ export function completeness(artwork) {
   ];
   const done = checks.filter((c) => c.ok).length;
   return { checks, done, total: checks.length, pct: Math.round((done / checks.length) * 100) };
+}
+
+// ---------------------------------------------------------------------------
+// Listings (§5.5). Relisting on Etsy mints a new listing id, so the history is
+// kept rather than overwritten: the old row stays and points at its successor.
+// ---------------------------------------------------------------------------
+
+export function newListing(patch = {}) {
+  const now = new Date().toISOString();
+  const base = {
+    id: null,
+    artwork_id: null,
+    channel: 'etsy',
+    etsy_listing_id: null,
+    etsy_url: null,
+    listing_type: 'original',
+    custom_kind: null, // 'pet' | 'family' | 'sports' for the three custom listings
+    print_substrate: null,
+    print_process: null,
+    print_vendor: null,
+    variants: [],
+    title: '',
+    tags: [],
+    materials: [],
+    description: '',
+    category_path: null,
+    quantity: 1,
+    processing_weeks: null,
+    free_shipping: true,
+    status: 'draft',
+    replaced_by: null,
+    suppression_suspected: false,
+    suppression_checked_on: null,
+    favorites_snapshot: null,
+    created_on: now.slice(0, 10),
+    created_at: now,
+    updated_at: now,
+  };
+  const listing = { ...base, ...patch };
+  if (!listing.id) listing.id = `lst-${slugify(listing.title || listing.artwork_id || 'untitled')}`;
+  return listing;
+}
+
+export function newVariant(patch = {}) {
+  return {
+    label: '', width_in: null, height_in: null, shape: null, price: null, ...patch,
+  };
+}
+
+/** Longest side a variant prints at, for the resolution check (§5.4). */
+export function variantLongEdge(variant) {
+  const sides = [variant?.width_in, variant?.height_in].filter((n) => typeof n === 'number');
+  return sides.length ? Math.max(...sides) : null;
 }

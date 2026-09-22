@@ -114,7 +114,8 @@ function detail(artwork, settings) {
       row('Retouch notes', artwork.print_master?.retouch_notes || '—'),
     ]),
 
-    artwork.notes ? section('Notes', [el('p', { class: 'notes', text: artwork.notes })]) : null,
+    artwork.history ? section('History', [el('p', { class: 'notes', text: artwork.history })], 'Public — goes into listing descriptions.') : null,
+    artwork.notes ? section('Notes', [el('p', { class: 'notes', text: artwork.notes })], 'Private. Never reaches a listing or the public catalog.') : null,
     artwork.blurb ? section('Kiosk blurb', [el('p', { class: 'notes', text: artwork.blurb })]) : null,
 
     el('div', { class: 'row end danger-zone' },
@@ -391,6 +392,10 @@ export async function renderArtworkEdit(host, { params }) {
         rows: 2, value: draft.blurb ?? '',
         onInput: (e) => { draft.blurb = e.target.value || null; },
       }), 'One or two sentences. Shown on the kiosk and the portfolio.'),
+      field('History', el('textarea', {
+        rows: 3, value: draft.history ?? '',
+        onInput: (e) => { draft.history = e.target.value || null; },
+      }), 'Public. The paragraph the original-listing template drops in — what the subject is, when it was built, why it matters.'),
       field('Private notes', el('textarea', {
         rows: 4, value: draft.notes ?? '',
         onInput: (e) => { draft.notes = e.target.value || null; },

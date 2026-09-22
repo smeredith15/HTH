@@ -192,4 +192,34 @@ export async function seedIfEmpty() {
   return { seeded: true, artworks: SEED_ARTWORKS.length, listings: SEED_LISTINGS.length };
 }
 
+/**
+ * Bring a device seeded by an earlier version up to the current Appendix A.
+ *
+ * A row is safe to refresh only while its `updated_at` is still SEED_AT — that
+ * is the seed exactly as it was loaded, never touched. Anything Scott has
+ * edited keeps his version and is counted as kept, not overwritten.
+ */
+export async function refreshSeed() {
+  const { SEED_ARTWORKS, SEED_LISTINGS, SEED_BACKLOG, SEED_AT } = await import('./seed.js');
+  const report = { added: 0, refreshed: 0, kept: 0 };
+
+  for (const [store, rows] of [
+    ['artworks', SEED_ARTWORKS], ['listings', SEED_LISTINGS], ['backlog', SEED_BACKLOG],
+  ]) {
+    const current = new Map((await getAll(store)).map((row) => [row.id, row]));
+    const writes = [];
+    for (const row of rows) {
+      const mine = current.get(row.id);
+      if (!mine) { writes.push(row); report.added += 1; continue; }
+      if (mine.updated_at === SEED_AT) {
+        if (JSON.stringify(mine) !== JSON.stringify(row)) { writes.push(row); report.refreshed += 1; }
+      } else {
+        report.kept += 1;
+      }
+    }
+    await putMany(store, writes);
+  }
+  return report;
+}
+
 export { DEFAULT_SETTINGS };

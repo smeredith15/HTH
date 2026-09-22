@@ -20,7 +20,9 @@ export const DEFAULT_SETTINGS = {
   shop_url: 'https://www.etsy.com/shop/HighTideHandmade25',
   custom_listing_url: null,
   processing_weeks: [6, 8],
-  holiday_cutoff: null,
+  // Christmas minus the 8-week worst case, minus a shipping week. Assumed, not
+  // given by the spec — see DECISIONS.md.
+  holiday_cutoff: '2026-10-23',
   last_exported_at: null,
   storage_notice_seen: false,
   trademark_blocklist: [
