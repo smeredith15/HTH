@@ -54,7 +54,7 @@ export async function renderHelp(host) {
         row('Home', 'What needs attention right now, and how long since you last backed up.'),
         row('Catalog', 'Every piece. Search, filter, add. Tap a piece for its full record and its photos.'),
         row('Listings', 'Etsy titles, tags and descriptions, with every check running as you type.'),
-        row('Costs', 'What each lab charges per print size, and what that means you have to charge.'),
+        row('Money', 'Sales, commissions, expenses, print costs, pricing and what actually pays.'),
         row('Backup', 'Export everything to a file. Import it back.'),
         row('Settings', 'Your hourly rate, Etsy fees, description templates, the trademark blocklist.')),
     ]),
@@ -77,9 +77,19 @@ export async function renderHelp(host) {
         'Copy each field across to Etsy with its copy button.',
       ]),
       steps('Work out what to charge for a print', [
-        'Costs → type what the lab charges into the row for that size.',
-        'Target is the price that leaves your target margin.',
-        'On a print listing, each size then shows what your current price actually earns.',
+        'Money → Print costs → type what the lab charges into the row for that size.',
+        'Money → Pricing then lists every price against what it should be, worst first.',
+        'Each suggestion has a button. Nothing changes a price on its own.',
+      ]),
+      steps('Sell something at a fair', [
+        'Money → Sales → Quick sale. Pick the piece, type the price, tap the payment.',
+        'It marks the piece sold and takes it off your on-hand list.',
+        'Money → Inventory has the pack list for what goes in the van.',
+      ]),
+      steps('Find out what is worth making', [
+        'Record hours on your sales — one number at the end is enough.',
+        'Money → What pays shows net divided by hours, by category and by whether the piece has a face.',
+        'Only categories with two or more sales are compared. One sale is an anecdote.',
       ]),
       steps('Back up', [
         'Backup → Export everything. Keep the file somewhere that is not this browser.',
@@ -99,8 +109,7 @@ export async function renderHelp(host) {
 
     section('Not built yet', [
       p('Kiosk mode for a craft-fair tablet, the public portfolio page, publishing '
-        + 'to the web, offline use, and the sales, commission and expense screens. '
-        + 'Those come in the phases after this one.'),
+        + 'to the web, and working offline. Those are the phases still to come.'),
     ]));
 }
 

@@ -371,3 +371,126 @@ export function variantLongEdge(variant) {
   const sides = [variant?.width_in, variant?.height_in].filter((n) => typeof n === 'number');
   return sides.length ? Math.max(...sides) : null;
 }
+
+// ---------------------------------------------------------------------------
+// Money and work (§5.6 – §5.9). Every one of these is private.
+// ---------------------------------------------------------------------------
+
+export const SALE_CHANNEL = ['etsy', 'fair', 'offline', 'gift'];
+export const RELATIONSHIP = ['stranger', 'friend', 'family', 'repeat'];
+export const SALE_SOURCE = [
+  'etsy_search', 'etsy_ads', 'offsite_ads', 'reddit', 'instagram', 'tiktok',
+  'referral', 'fair', 'repeat', 'unknown',
+];
+export const PAYMENT_METHOD = ['etsy', 'cash', 'card_reader', 'venmo', 'other'];
+
+export const COMMISSION_TYPE = ['pet', 'person', 'couple', 'family', 'sports', 'place', 'other'];
+export const COMMISSION_STATUS = [
+  'inquiry', 'quoted', 'accepted', 'in_progress', 'awaiting_approval',
+  'finished', 'shipped', 'delivered', 'cancelled',
+];
+/** Statuses that still consume bench time. */
+export const COMMISSION_OPEN = ['accepted', 'in_progress', 'awaiting_approval'];
+
+export function newSale(patch = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: null,
+    artwork_id: null,
+    listing_id: null,
+    commission_id: null,
+    channel: 'etsy',
+    date: now.slice(0, 10),
+    customer_id: null,
+    relationship: null,
+    source: 'unknown',
+    gross_price: null,
+    shipping_charged: 0,
+    shipping_cost: 0,
+    fees: null,           // computed from settings for Etsy, then editable
+    materials_cost: null, // defaults from the artwork
+    hours: null,          // defaults from the artwork
+    payment_method: 'etsy',
+    notes: null,
+    created_at: now,
+    updated_at: now,
+    ...patch,
+  };
+}
+
+export function newCustomer(patch = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: null,
+    name: '',
+    contact: null,
+    relationship: 'stranger',
+    first_purchase_on: null,
+    ok_to_contact: false, // §5.7: only reach out if they agreed
+    notes: null,
+    created_at: now,
+    updated_at: now,
+    ...patch,
+  };
+}
+
+export function newCommission(patch = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: null,
+    customer_id: null,
+    type: 'pet',
+    subject_count: 1,
+    size: null,
+    quoted_price: null,
+    deposit_paid: null,
+    deposit_date: null,
+    reference_notes: null,
+    rights_flags: [],
+    status: 'inquiry',
+    due_date: null,
+    ship_by: null,
+    estimated_hours: null,
+    actual_hours: null,
+    artwork_id: null,
+    notes: null,
+    created_at: now,
+    updated_at: now,
+    ...patch,
+  };
+}
+
+export function newExpense(patch = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: null,
+    date: now.slice(0, 10),
+    amount: null,
+    category: 'other',
+    vendor: null,
+    note: null,
+    artwork_id: null, // when a cost belongs to one piece
+    created_at: now,
+    updated_at: now,
+    ...patch,
+  };
+}
+
+export function newSnapshot(patch = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: null,
+    month: null, // YYYY-MM
+    visits: null,
+    views: null,
+    orders: null,
+    revenue: null,
+    conversion_pct: null,
+    favorites: null,
+    followers: null,
+    note: null,
+    created_at: now,
+    updated_at: now,
+    ...patch,
+  };
+}

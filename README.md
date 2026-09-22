@@ -40,6 +40,14 @@ guide, per-photo alt text and quality flags. Adding a straight-on photo offers
 to record it as the print master. A piece still on hand with no straight-on
 photo says "photograph this before it leaves", and that prompt can be snoozed.
 
+### What Phase 6 covers
+
+Sales with a three-tap quick sale for a fair table, the commission queue with
+capacity, an expense ledger, the fair pack list, monthly shop figures, and two
+reports: **Pricing**, which puts every live price against what the record says
+it should be, and **What pays**, which is net divided by hours — the number
+§1.1 says was never visible.
+
 ## Print costs
 
 `#/print-costs` holds what each lab charges per size — CanvasChamp canvas and
@@ -72,7 +80,7 @@ Print masters are never committed. The registry records where they live.
 | 3 | Images and print masters | **done** |
 | 4 | Publish, kiosk, public portfolio | not started |
 | 5 | Offline / PWA | not started |
-| 6 | Sales, commissions, inventory, budgeting, dashboard | not started |
+| 6 | Sales, commissions, inventory, budgeting, dashboard | **done** |
 | 7 | Optional — encrypted sync, direct commit | not started |
 
 ### What Phase 1 covers
