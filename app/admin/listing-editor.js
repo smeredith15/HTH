@@ -8,6 +8,7 @@ import { loadSettings } from '../store/db.js';
 import { priceFloor, impliedHourly } from '../store/settings.js';
 import {
   LISTING_TYPE, LISTING_STATUS, LISTING_CHANNEL, PRINT_SUBSTRATE, PRINT_PROCESS, SHAPE,
+  printSource, printLimits,
 } from '../store/schema.js';
 import { generateListing, generateDescription, suggestTitle, suggestTags, suggestMaterials, suggestCategoryPath, reminderChecklist } from '../listing/generate.js';
 import { validateListing, summarise } from '../listing/validators.js';
@@ -143,6 +144,7 @@ export async function renderListingEditor(host, { params }) {
 
     el('section', { class: 'panel' },
       el('h2', null, 'Variants'),
+      referenceSizeLine(artwork),
       variantsTable(draft, refresh),
       pricePanel,
       el('div', { class: 'row' },
@@ -405,6 +407,29 @@ function printPriceView(draft, { costRows, vendors }, settings) {
             ? el('strong', { class: tone, text: `${Math.round(at.margin * 100)}% · ${money(at.profit)}` })
             : el('span', { class: 'muted', text: '—' })));
       }))));
+}
+
+/**
+ * The ceiling every size in this table is measured against, and where that
+ * number came from. A size typed in here is a promise to a buyer; the promise
+ * is only as good as the file behind it.
+ */
+function referenceSizeLine(artwork) {
+  if (!artwork) return null;
+  const source = printSource(artwork);
+  const limits = printLimits(source);
+  if (!limits) {
+    return el('p', { class: 'hint warn-text' },
+      'No master measured and no photograph on file, so nothing here can be checked against a real resolution.');
+  }
+  return el('p', { class: 'hint' },
+    `Biggest honest print: ${limits.at150.toFixed(1)} in on the long edge at 150 DPI, `
+    + `${limits.at100.toFixed(1)} in at the 100 DPI floor. `,
+    source.from === 'master'
+      ? `From the measured master (${source.long_edge_px} px).`
+      : el('span', { class: 'warn-text' },
+        `From the ${label(source.image?.role ?? 'reference')} photo (${source.long_edge_px} px) — no master measured yet, `
+        + 'and cropping to the art will take some of that away.'));
 }
 
 // --- variants --------------------------------------------------------------

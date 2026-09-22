@@ -452,9 +452,21 @@ at 142 KB. Pure noise fell back to 1,800 px at 567 KB. Both are correct.
 A phone photo is 3–12 MB and §3 caps a committed file at 50 MB, so originals
 are never stored. What is kept is `original_width_px` and `original_height_px`,
 private, because that pair is the only thing that decides the print-size limit
-(§5.4). Adding a straight-on photo offers to record it as the print master
-rather than doing it silently — the registry is the owner's judgement, not a
-side effect.
+(§5.4).
+
+### The master is measured, not stored, and not the straight-on shot
+
+Adding a straight-on photo used to offer to record it as the print master. That
+conflated two different files. The reference shot has wall, frame and floor in
+it; the master is that shot cropped to the art, retouched, at full resolution —
+often a 200 MB TIFF, which has no business inside IndexedDB.
+
+So the edit form measures instead: pick the master file, `measureFile` reads its
+pixel dimensions in the browser and keeps nothing. Until one is measured,
+`printSource` falls back to the largest photograph on file and marks the result
+`cropped: false`, so every screen that quotes a size can say the number is an
+upper bound rather than a promise. A checkbox saying a master exists is not a
+measurement — `printSource` ignores it without a pixel count.
 
 ### The prompt that matters most is snoozable
 

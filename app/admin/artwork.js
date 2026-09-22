@@ -9,10 +9,10 @@ import {
   ARTWORK_STATUS, DISPOSITION, VISIBILITY, CATEGORY, SHAPE, SUBSTRATE,
   TECHNIQUE, RIGHTS_FLAG, RIGHTS_ANSWER, PRINT_READY,
   completeness, effectiveRights, printLimits, hasUsableMaster, isGone,
-  photographBeforeItLeaves, snoozeUntil,
+  photographBeforeItLeaves, snoozeUntil, printSource,
 } from '../store/schema.js';
 import { photoPanel } from './photo-panel.js';
-import { missingAltText } from '../images/photos.js';
+import { missingAltText, measureFile } from '../images/photos.js';
 
 const RIGHTS_TONE = { yes: 'ok', ask_first: 'warn', no: 'bad', unknown: 'muted' };
 
@@ -28,6 +28,10 @@ function detail(artwork, settings, reload) {
   const rights = effectiveRights(artwork.rights);
   const meter = completeness(artwork);
   const limits = printLimits(artwork.print_master);
+  // What the piece could be printed from today: the master if it has been
+  // measured, otherwise the largest reference photo on file.
+  const source = printSource(artwork);
+  const sourceLimits = printLimits(source);
 
   return el('article', { class: 'detail' },
     el('div', { class: 'view-head' },
@@ -113,10 +117,13 @@ function detail(artwork, settings, reload) {
       row('Where the file is', masterLocation(artwork.print_master?.location)),
       row('Pixels', artwork.print_master?.long_edge_px
         ? `${artwork.print_master.long_edge_px} × ${artwork.print_master.short_edge_px ?? '?'}` : '—'),
-      row('Max print size', limits
+      row('Max print size', sourceLimits
         ? el('span', null,
-          `${limits.at150.toFixed(1)} in at 150 DPI`,
-          el('span', { class: 'muted', text: ` · ${limits.at100.toFixed(1)} in at 100 DPI (floor for large pieces)` }))
+          `${sourceLimits.at150.toFixed(1)} in at 150 DPI`,
+          el('span', { class: 'muted', text: ` · ${sourceLimits.at100.toFixed(1)} in at 100 DPI (floor for large pieces)` }),
+          source.from === 'photo'
+            ? el('span', { class: 'muted', text: ` · from the ${label(source.image?.role ?? 'reference')} photo, before cropping` })
+            : null)
         : '—'),
       row('Print ready', label(artwork.print_master?.print_ready)),
       row('Retouch notes', artwork.print_master?.retouch_notes || '—'),
@@ -149,7 +156,7 @@ function photographPrompt(artwork, reload) {
   };
   return el('div', { class: 'alert warn' },
     el('strong', null, 'Photograph this before it leaves.'),
-    ' It is still on hand and has no straight-on photo, so there is no print master. '
+    ' It is still on hand and has no straight-on photo, so there is nothing to crop a print out of. '
     + 'Four lighthouses already went out of the studio this way and can never be printed.',
     el('div', { class: 'row' },
       el('button', { class: 'btn ghost small', type: 'button', onClick: () => snooze(7) }, 'Snooze a week'),
@@ -169,6 +176,42 @@ function masterLocation(location) {
   }
   if (!/^https?:\/\//i.test(text)) return el('span', { text });
   return el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', text: 'Open the master ↗' });
+}
+
+/**
+ * Measure the master without storing it.
+ *
+ * The master is a separate, cropped, full-resolution file — often a 200 MB
+ * TIFF — and it has no business inside IndexedDB. This reads its pixel
+ * dimensions in the browser, fills them in, and keeps nothing.
+ */
+function measureButton(draft, masterEdge, onMeasured) {
+  return el('label', { class: 'btn ghost small' }, 'Measure the master file',
+    el('input', {
+      type: 'file', accept: 'image/*', class: 'visually-hidden',
+      onChange: async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        try {
+          const { width, height, name } = await measureFile(file);
+          const long = Math.max(width, height);
+          const short = Math.min(width, height);
+          draft.print_master.long_edge_px = long;
+          draft.print_master.short_edge_px = short;
+          draft.print_master.exists = true;
+          if (!draft.print_master.filename) draft.print_master.filename = name;
+          if (masterEdge.long) masterEdge.long.value = long;
+          if (masterEdge.short) masterEdge.short.value = short;
+          if (masterEdge.exists) masterEdge.exists.checked = true;
+          onMeasured();
+          const limits = printLimits(draft.print_master);
+          toast(`${width} × ${height} px — prints to ${limits.at150.toFixed(1)} in at 150 DPI. The file itself was not kept.`, 'ok');
+        } catch (err) {
+          toast(err.message, 'warn');
+        }
+      },
+    }));
 }
 
 function floorLine(artwork, settings) {
@@ -244,6 +287,9 @@ export async function renderArtworkEdit(host, { params }) {
   // Reassigned by the two live-hint blocks further down.
   let refreshDerived = () => {};
   let refreshLimits = () => {};
+
+  // Held so measuring a file can fill them in without rebuilding the form.
+  const masterEdge = { long: null, short: null, exists: null };
 
   const num = (key, labelText, hint) => field(labelText, el('input', {
     type: 'number', step: 'any', inputMode: 'decimal', value: draft[key] ?? '',
@@ -391,9 +437,11 @@ export async function renderArtworkEdit(host, { params }) {
 
     el('section', { class: 'panel' },
       el('h2', null, 'Print master'),
-      el('p', { class: 'hint' }, 'Masters live outside this repo — on a drive or in cloud storage. Only the location is recorded here.'),
+      el('p', { class: 'hint' }, 'The master is its own file — the reference shot cropped to the art, at full resolution. '
+        + 'It lives outside this repo, on a drive or in cloud storage; only its location and its size are recorded here.'),
+      measureButton(draft, masterEdge, () => refreshLimits()),
       el('label', { class: 'check' },
-        el('input', {
+        masterEdge.exists = el('input', {
           type: 'checkbox', checked: !!draft.print_master.exists,
           onChange: (e) => { draft.print_master.exists = e.target.checked; refreshLimits(); },
         }), el('span', null, 'A usable master exists')),
@@ -403,11 +451,11 @@ export async function renderArtworkEdit(host, { params }) {
         onInput: (e) => { draft.print_master.location = e.target.value || null; },
       })),
       el('div', { class: 'two-up' },
-        field('Long edge (px)', el('input', {
+        field('Long edge (px)', masterEdge.long = el('input', {
           type: 'number', inputMode: 'numeric', value: draft.print_master.long_edge_px ?? '',
           onInput: (e) => { draft.print_master.long_edge_px = e.target.value === '' ? null : Number(e.target.value); refreshLimits(); },
         })),
-        field('Short edge (px)', el('input', {
+        field('Short edge (px)', masterEdge.short = el('input', {
           type: 'number', inputMode: 'numeric', value: draft.print_master.short_edge_px ?? '',
           onInput: (e) => { draft.print_master.short_edge_px = e.target.value === '' ? null : Number(e.target.value); },
         }))),

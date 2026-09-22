@@ -36,9 +36,20 @@ is kept from the original is its pixel size, because that is what decides how
 large the piece can ever be printed.
 
 The seven-shot checklist from §6.2 sits on every artwork with the shooting
-guide, per-photo alt text and quality flags. Adding a straight-on photo offers
-to record it as the print master. A piece still on hand with no straight-on
-photo says "photograph this before it leaves", and that prompt can be snoozed.
+guide, per-photo alt text and quality flags. A row takes as many photos as you
+give it, anything tagged `other` collects in its own section, and each photo
+carries an optional link back to the untouched original in Drive or Google
+Photos. Under every photo is the biggest print it could honestly support, at
+150 and at 100 DPI, before cropping.
+
+The print master is a separate file — the reference shot cropped to the art, at
+full resolution — so the edit form measures one without storing it: pick the
+file, the app reads its pixel dimensions, fills them in and keeps nothing. Until
+a master is measured, the largest photo on file stands in as the ceiling, and
+the listing editor says so rather than pretending it is a promise.
+
+A piece still on hand with no straight-on photo says "photograph this before it
+leaves", and that prompt can be snoozed.
 
 ### What Phase 6 covers
 

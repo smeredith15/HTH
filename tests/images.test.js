@@ -6,10 +6,11 @@ import {
 } from '../app/images/resize.js';
 import {
   PHOTO_CHECKLIST, SHOOTING_GUIDE, checklistFor, checklistProgress, missingAltText,
-  nextImageId, webPathFor, thumbPathFor, unclaimedImages, duplicateRoles,
+  nextImageId, webPathFor, thumbPathFor, unclaimedImages,
 } from '../app/images/photos.js';
 import {
   newArtwork, photographBeforeItLeaves, snoozeUntil, printLimits,
+  imageLongEdge, printSource,
   PRIVATE_IMAGE_FIELDS, PUBLIC_IMAGE_FIELDS,
 } from '../app/store/schema.js';
 
@@ -104,38 +105,30 @@ test('the checklist pairs each role with its photo', () => {
   assert.equal(rows.find((r) => r.role === 'signature').image, null);
 });
 
-// Two photos on one role once made the spare disappear from the panel
-// altogether: the row took the first, and the extras list only caught roles
-// that were off the checklist. The photo was unreachable, and the row it
-// should have filled looked like a shot that had never been taken.
-test('a role used twice fills its row once and hands back the spare', () => {
+// A role is not a single slot. Two photos on one role once made the spare
+// disappear from the panel altogether: the row took the first with .find, and
+// the extras list only caught roles that were off the checklist. The photo was
+// unreachable and the record looked thinner than it was.
+test('a role holds as many photos as it is given', () => {
   const artwork = newArtwork({ title: 'x', images: [
     { id: 'straight_on', role: 'straight_on' },
-    { id: 'in_room', role: 'straight_on' },
+    { id: 'straight_on-2', role: 'straight_on' },
+    { id: 'detail_raking', role: 'detail_raking' },
   ] });
   const rows = checklistFor(artwork);
-  assert.equal(rows.find((r) => r.role === 'straight_on').image.id, 'straight_on');
-  assert.equal(rows.find((r) => r.role === 'in_room').image, null);
-  assert.deepEqual(unclaimedImages(artwork).map((i) => i.id), ['in_room']);
-  assert.equal(checklistProgress(artwork).done, 1, 'the spare does not count twice');
+  const straight = rows.find((r) => r.role === 'straight_on');
+  assert.deepEqual(straight.images.map((i) => i.id), ['straight_on', 'straight_on-2']);
+  assert.equal(straight.image.id, 'straight_on', 'the first is what the meter reads');
+  assert.equal(checklistProgress(artwork).done, 2, 'a second photo on a role is not a second shot');
+  assert.deepEqual(unclaimedImages(artwork), [], 'neither of them is homeless');
 });
 
-test('an off-checklist role is still handed back as an extra', () => {
-  const artwork = newArtwork({ title: 'x', images: [{ id: 'packed', role: 'packed' }] });
-  assert.deepEqual(unclaimedImages(artwork).map((i) => i.id), ['packed']);
-  assert.deepEqual(duplicateRoles(artwork), []);
-});
-
-test('duplicate roles are named so the warning can say which', () => {
+test('an off-checklist role is handed back as an extra', () => {
   const artwork = newArtwork({ title: 'x', images: [
-    { id: 'a', role: 'straight_on' },
-    { id: 'b', role: 'straight_on' },
-    { id: 'c', role: 'scale' },
+    { id: 'packed', role: 'other' },
+    { id: 'straight_on', role: 'straight_on' },
   ] });
-  const dupes = duplicateRoles(artwork);
-  assert.equal(dupes.length, 1);
-  assert.equal(dupes[0].role, 'straight_on');
-  assert.deepEqual(dupes[0].images.map((i) => i.id), ['a', 'b']);
+  assert.deepEqual(unclaimedImages(artwork).map((i) => i.id), ['packed']);
 });
 
 test('alt text is tracked because publishing needs it', () => {
@@ -214,4 +207,54 @@ test('an original’s details stay private', () => {
     assert.equal(PUBLIC_IMAGE_FIELDS.includes(field), false, `${field} must not be published`);
   }
   assert.ok(PRIVATE_IMAGE_FIELDS.includes('quality_flags'));
+});
+
+// --- what a piece can be printed from (§5.4) -------------------------------
+
+test('a photo is measured by the original, not the web copy the app kept', () => {
+  assert.equal(imageLongEdge({ width_px: 2000, height_px: 1500, original_width_px: 4032, original_height_px: 3024 }), 4032);
+  // A photo added before the app recorded originals still has to answer.
+  assert.equal(imageLongEdge({ width_px: 1440, height_px: 1800 }), 1800);
+  assert.equal(imageLongEdge({}), null);
+});
+
+test('the print source is the master once it has been measured', () => {
+  const artwork = newArtwork({ title: 'x',
+    print_master: { exists: true, long_edge_px: 6000, short_edge_px: 4000 },
+    images: [{ id: 'a', role: 'straight_on', original_width_px: 4032, original_height_px: 3024 }] });
+  const source = printSource(artwork);
+  assert.equal(source.from, 'master');
+  assert.equal(source.long_edge_px, 6000);
+  assert.equal(source.cropped, true);
+  assert.equal(printLimits(source).at150, 40);
+});
+
+// The golf bag has five photos and no master. Saying nothing about how large
+// it prints is worse than saying "12 in, and that is before you crop".
+test('with no master it falls back to the largest photo, and says so', () => {
+  const artwork = newArtwork({ title: 'x', images: [
+    { id: 'a', role: 'process', original_width_px: 864, original_height_px: 1920 },
+    { id: 'b', role: 'straight_on', original_width_px: 1440, original_height_px: 1800 },
+  ] });
+  const source = printSource(artwork);
+  assert.equal(source.from, 'photo');
+  assert.equal(source.long_edge_px, 1920, 'the biggest file wins, whatever its role');
+  assert.equal(source.cropped, false, 'a reference shot still has wall and frame in it');
+  assert.equal(printLimits(source).at150, 12.8);
+});
+
+test('a master that is only a checkbox is not a measurement', () => {
+  const artwork = newArtwork({ title: 'x',
+    print_master: { exists: true, long_edge_px: null },
+    images: [{ id: 'b', role: 'straight_on', original_width_px: 1440, original_height_px: 1800 }] });
+  assert.equal(printSource(artwork).from, 'photo');
+  assert.equal(printSource(newArtwork({ title: 'x' })), null);
+});
+
+// A link to the original in Drive is the way back to the full-size file. It is
+// also a link into a private Google account, so it never reaches the public
+// catalog — which the allow-list guarantees, as long as nobody adds it there.
+test('the link to the original is private', () => {
+  assert.ok(PRIVATE_IMAGE_FIELDS.includes('source_url'));
+  assert.ok(!PUBLIC_IMAGE_FIELDS.includes('source_url'));
 });

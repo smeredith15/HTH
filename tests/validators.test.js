@@ -175,6 +175,44 @@ test('print resolution against the master (§5.4)', () => {
   assert.equal(checkPrintResolution(at(40), artwork)[0].level, 'stop', 'past 100 DPI');
 });
 
+// Scott's photographs arrive long before a cropped master does. Checking the
+// sizes against the best photo on file, and saying plainly that it is a photo,
+// beats the old behaviour of shrugging until a master existed.
+test('with no master the sizes are checked against the largest photo', () => {
+  const artwork = newArtwork({ title: 'Vintage golf bag', images: [
+    { id: 'straight_on', role: 'straight_on', original_width_px: 1440, original_height_px: 1800 },
+  ] });
+  // 1,800 px is 12 in at 150 DPI and 18 in at the 100 DPI floor.
+  const at = (edge) => ({ listing_type: 'print', variants: [{ label: `${edge} in`, width_in: 8, height_in: edge }] });
+  const soft = checkPrintResolution(at(14), artwork);
+  assert.equal(soft[0].level, 'warn');
+  assert.match(soft[0].message, /largest photo on file \(before cropping\)/);
+  assert.match(soft[0].message, /12\.0 in at 150 DPI/);
+
+  const tooBig = checkPrintResolution(at(20), artwork);
+  assert.equal(tooBig[0].level, 'stop');
+  assert.match(tooBig[0].message, /18\.0 in even at 100 DPI/);
+});
+
+test('a size the photo does support still says no master has been measured', () => {
+  const artwork = newArtwork({ title: 'Vintage golf bag', images: [
+    { id: 'straight_on', role: 'straight_on', original_width_px: 1440, original_height_px: 1800 },
+  ] });
+  const listing = { listing_type: 'print', variants: [{ label: '8 × 10', width_in: 8, height_in: 10 }] };
+  const findings = checkPrintResolution(listing, artwork);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].level, 'note');
+  assert.match(findings[0].message, /No master measured yet/);
+});
+
+test('a measured master silences the reminder entirely', () => {
+  const artwork = newArtwork({ title: 'x',
+    print_master: { exists: true, long_edge_px: 6000 },
+    images: [{ id: 'a', role: 'straight_on', original_width_px: 1440, original_height_px: 1800 }] });
+  const listing = { listing_type: 'print', variants: [{ label: '16 × 20', width_in: 16, height_in: 20 }] };
+  assert.deepEqual(checkPrintResolution(listing, artwork), []);
+});
+
 test('Hooper Strait cannot support anything past 9.6 in', () => {
   const hooper = SEED_ARTWORKS.find((a) => a.id === 'hooper-strait-lighthouse');
   const listing = { listing_type: 'print', variants: [{ label: '16 × 20', width_in: 16, height_in: 20 }] };
