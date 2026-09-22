@@ -1,0 +1,4 @@
+node_modules/
+.DS_Store
+# Private-layer exports are the backup of record and must never be committed.
+hightide-private-*.json
