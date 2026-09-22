@@ -168,7 +168,17 @@ and the mount lands inside the landed cost rather than beside it. The Mount
 column can be unticked to price a bare print, or typed over with a flat figure
 when the percentage is wrong.
 
-### Nations drop-ships
+### Both labs drop-ship
+
+Confirmed by the owner, October 2026. Neither lab is handled by Scott: no
+inbound leg, no postage out, no packaging. Landed cost is the lab's price plus
+the lab's own shipping, plus mounting where the lab does not include it.
+
+CanvasChamp also carries a `quality_checked_on` date — they have produced good
+work before. Nations is **assumed** good pending a proof, so its comparison
+rows still say "not proofed" until one has been ordered and approved.
+
+### Superseded: Nations drop-ships
 
 They are local, but their site offers no in-person collection, and their
 postage is likely cheaper than Scott's. So `fulfilment` is `dropship`: they
@@ -180,15 +190,59 @@ Scott pays inbound, postage out and packaging on every one of those. It is
 worth checking whether CanvasChamp will drop-ship too, because it is worth
 about $14.50 a print.
 
-Worked at 16 × 20, with $20 CanvasChamp canvas and $34 Nations giclée:
+Worked at 16 × 20 on the real quotes, both labs drop-shipping:
 
 | | Landed | Target at 55% |
 |---|---|---|
-| CanvasChamp canvas, hardware included | $40.50 | $115.35 |
-| Nations giclée + $17 mount, drop-shipped | $59.00 | $167.46 |
+| CanvasChamp canvas $22.27, hardware included | $32.26 | $92.14 |
+| Nations giclée $39.85 + $19.93 mount | $69.73 | $197.69 |
 
-So genuine giclée costs the buyer **+$52.11** at that size — rather more than
-the +$22.54 the earlier, wrong comparison suggested.
+Genuine giclée more than doubles the shelf price at that size.
+
+### What the real quotes showed (22 September 2026)
+
+**The MDF line cannot carry the shop's prices.** CanvasChamp wood runs about
+28¢ a square inch against 6¢ for canvas — three to four times the cost for the
+same image. The cactus print's sizes today:
+
+| Size | Price | Landed | Profit | Margin | Break even |
+|---|---|---|---|---|---|
+| 12 × 8 | $55 | $40.18 | $9.14 | 17% | $44.90 |
+| 18 × 12 | $75 | $58.96 | $8.46 | 11% | $65.65 |
+| 24 × 16 | $140 | $117.31 | $8.94 | 6% | $130.12 |
+
+Every size earns about nine dollars, and the largest is $10 above the price at
+which it earns nothing. Reaching the target margin at 24 × 16 would mean $331.72,
+which is not a price anyone pays for a print.
+
+**Canvas is the opposite story.** 24 × 36 canvas lands at $41.99, so the whale
+and flag listings' top variant at $340 runs a 78% margin. Their $50 entry
+variant runs 25%.
+
+**Giclée paper is cheapest at small sizes and dearest at large.** Below about
+12 × 12 it beats canvas even after mounting; from 16 × 20 up it is roughly
+double. That suits it as a small premium option rather than the large-format
+one.
+
+**Nations giclée on canvas is entirely unpriced**, and it is the only true
+like-for-like against CanvasChamp canvas.
+
+### Cost sanity checks
+
+Lab price ladders are lumpy, so the check only fires when a print at least 10%
+larger costs at least 10% less — an inversion that is either a sale or a typo.
+A loose per-square-inch guard catches a misplaced decimal point. Tighter
+thresholds flagged fourteen things on Scott's real data, almost all of them
+aspect-ratio granularity; these thresholds flag three, and all three are real.
+
+### CSV import creates sizes it has not seen
+
+Scott's own file carried fourteen sizes the seeded template never had, and the
+first import silently dropped every one of them — which also hid one of the
+three anomalies. A row whose id is unknown is now created, as long as it
+carries a size and a line that can be read from its id or its vendor columns.
+Without that, an export could not rebuild a catalogue after browser storage was
+cleared, which is exactly what an export is for.
 
 ### Neither lab is proofed yet
 

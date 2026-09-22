@@ -18,13 +18,14 @@ export const SEED_VENDORS = [
     id: 'canvaschamp',
     name: 'CanvasChamp',
     url: 'https://www.canvaschamp.com/',
-    fulfilment: 'receive_and_ship',
+    // Both labs drop-ship, so Scott never handles a print or pays postage.
+    fulfilment: 'dropship',
     local: false,
-    quality_checked_on: null,
+    quality_checked_on: '2026-09-22',
     notes: 'Canvas is poly-cotton with UV-resistant solvent-free latex inks. '
       + 'Wood prints are permanent UV ink direct to MDF composite. Neither is giclée. '
       + 'Quoted price includes proofing and hanging hardware, so nothing is added '
-      + 'to make it ready to hang.',
+      + 'to make it ready to hang. Has produced good work for Scott before.',
     checked_on: '2026-10-01',
   },
   {
@@ -36,7 +37,8 @@ export const SEED_VENDORS = [
     fulfilment: 'dropship',
     local: true,
     quality_checked_on: null,
-    notes: 'Genuine giclée. Price quoted is for the print alone: mounting is a '
+    notes: 'Quality assumed good pending a proof — order one and check before this '
+      + 'becomes the official workflow. Genuine giclée. Price quoted is for the print alone: mounting is a '
       + 'separate 3/16 in white foamcore backing at roughly 50% of the base price. '
       + 'Local, but no in-person collection is offered, so they ship direct to the buyer.',
     checked_on: null,
@@ -292,9 +294,25 @@ const NUMERIC = new Set([
 const BOOLEAN = new Set(['mounted']);
 
 /**
+ * Work out which product line a row belongs to, for a row this device has
+ * never seen. The id carries it (`pc-<line>-<w>x<h>`), and the vendor and
+ * product columns are the fallback.
+ */
+export function lineForRow(row) {
+  const fromId = PRODUCT_LINES.find((l) => String(row.id ?? '').startsWith(`pc-${l.key}-`));
+  if (fromId) return fromId;
+  return PRODUCT_LINES.find((l) => l.vendor === row.vendor && l.product === row.product) ?? null;
+}
+
+/**
  * Read a filled-in CSV back. Only the columns present are touched, so a
  * spreadsheet that carries just id and unit_cost updates only the price —
  * which is the whole point of the round trip.
+ *
+ * A row whose id this device has never seen is *created* rather than skipped,
+ * as long as it carries a size and a line we can place it in. Sizes added on
+ * one device have to survive the trip to another, and an export has to be able
+ * to rebuild a catalogue that browser storage has thrown away.
  */
 export function applyCSV(text, current) {
   const table = parseCSV(text);
@@ -305,12 +323,40 @@ export function applyCSV(text, current) {
     throw new Error('The first row must be the column names, and must include "id".');
   }
   const byId = new Map(current.map((r) => [r.id, r]));
-  const result = { updated: [], unknown: [], unchanged: 0 };
+  const result = { updated: [], created: [], unknown: [], unchanged: 0 };
 
   for (const cells of table.slice(1)) {
     const incoming = Object.fromEntries(header.map((key, i) => [key, (cells[i] ?? '').trim()]));
-    const existing = byId.get(incoming.id);
-    if (!existing) { result.unknown.push(incoming.id); continue; }
+    let existing = byId.get(incoming.id);
+
+    if (!existing) {
+      const line = lineForRow(incoming);
+      const width = Number(incoming.width_in);
+      const height = Number(incoming.height_in);
+      if (!line || !incoming.id || !Number.isFinite(width) || !Number.isFinite(height)
+        || width <= 0 || height <= 0) {
+        result.unknown.push(incoming.id || '(no id)');
+        continue;
+      }
+      existing = {
+        id: incoming.id,
+        line: line.key,
+        vendor: line.vendor,
+        product: line.product,
+        substrate: line.substrate,
+        process: line.process,
+        width_in: width,
+        height_in: height,
+        unit_cost: null, ship_each: null, lead_days: null, note: null, checked_on: null,
+        finishing_label: line.finishing?.label ?? null,
+        finishing_pct: line.finishing?.pct ?? null,
+        finishing_cost: null,
+        mounted: !!line.finishing,
+        created_at: new Date().toISOString(),
+        updated_at: SEED_AT,
+      };
+      result.created.push(incoming.id);
+    }
 
     const patch = {};
     for (const [key, raw] of Object.entries(incoming)) {
@@ -321,7 +367,8 @@ export function applyCSV(text, current) {
       if (NUMERIC.has(key) && value !== null && !Number.isFinite(value)) continue;
       if (existing[key] !== value) patch[key] = value;
     }
-    if (Object.keys(patch).length) result.updated.push({ ...existing, ...patch });
+    if (result.created.includes(existing.id)) result.updated.push({ ...existing, ...patch });
+    else if (Object.keys(patch).length) result.updated.push({ ...existing, ...patch });
     else result.unchanged += 1;
   }
   return result;

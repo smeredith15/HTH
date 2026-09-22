@@ -165,6 +165,70 @@ export function compareVendors(costRows, vendors, settings, { width_in, height_i
     .sort((a, b) => a.cost.total - b.cost.total);
 }
 
+/**
+ * Look for lab prices that cannot both be right.
+ *
+ * A meaningfully larger print costing meaningfully less is either a promotion
+ * that will expire or a typo, and both are worth knowing before a retail price
+ * is built on top of one. The thresholds matter: a size ladder is lumpy, so a
+ * 12 × 24 costing 49¢ more than a 16 × 20 is just granularity, not an error.
+ */
+const AREA_RATIO = 1.10;   // the larger print must be at least 10% bigger
+const PRICE_DROP = 0.10;   // and at least 10% cheaper
+
+export function costAnomalies(rows) {
+  const out = [];
+  const byLine = new Map();
+  for (const row of rows) {
+    if (!(Number(row.unit_cost) > 0) || !row.width_in || !row.height_in) continue;
+    if (!byLine.has(row.line)) byLine.set(row.line, []);
+    byLine.get(row.line).push({ ...row, area: row.width_in * row.height_in });
+  }
+
+  for (const [line, set] of byLine) {
+    if (set.length < 3) continue;
+    set.sort((a, b) => a.area - b.area);
+
+    for (let i = 0; i < set.length; i += 1) {
+      for (let j = i + 1; j < set.length; j += 1) {
+        const bigger = set[j].area / set[i].area >= AREA_RATIO;
+        const cheaper = (set[i].unit_cost - set[j].unit_cost) / set[i].unit_cost >= PRICE_DROP;
+        if (bigger && cheaper) {
+          out.push({
+            line,
+            id: set[i].id,
+            kind: 'inverted',
+            message: `${sizeLabel(set[i])} costs $${set[i].unit_cost.toFixed(2)} but the larger `
+              + `${sizeLabel(set[j])} is only $${set[j].unit_cost.toFixed(2)}. One of the two is a `
+              + 'promotion that will expire, or a typo.',
+          });
+          j = set.length;
+        }
+      }
+    }
+
+    // A loose guard for a misplaced decimal point. Small sizes genuinely cost
+    // far more per square inch, so anything tighter than this is all noise.
+    const psi = set.map((r) => r.unit_cost / r.area).sort((a, b) => a - b);
+    const median = psi[Math.floor(psi.length / 2)];
+    for (const row of set) {
+      const ratio = (row.unit_cost / row.area) / median;
+      if (ratio > 3 || ratio < 0.34) {
+        out.push({
+          line,
+          id: row.id,
+          kind: 'outlier',
+          message: `${sizeLabel(row)} at $${row.unit_cost.toFixed(2)} is `
+            + `${ratio > 1 ? 'far dearer' : 'far cheaper'} per square inch than everything else in `
+            + 'this line. Check the decimal point.',
+        });
+      }
+    }
+  }
+  const seen = new Set();
+  return out.filter((a) => (seen.has(a.id) ? false : seen.add(a.id)));
+}
+
 /** 16 × 20 and 20 × 16 are the same print turned round. */
 export function sameSize(a, b) {
   const pair = (x) => [Number(x?.width_in), Number(x?.height_in)].sort((m, n) => m - n).join('×');

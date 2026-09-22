@@ -10,8 +10,8 @@ import {
 } from '../store/print-costs.js';
 import { putMany, loadSettings, saveSettings } from '../store/db.js';
 import {
-  landedCost, finishingCost, breakEven, priceForMargin, compareVendors, sizeLabel, sameSize,
-  FULFILMENT, FULFILMENT_LABELS,
+  landedCost, finishingCost, breakEven, priceForMargin, compareVendors, costAnomalies,
+  sizeLabel, sameSize, FULFILMENT, FULFILMENT_LABELS,
 } from '../listing/print-pricing.js';
 
 const state = { hideUnpriced: false };
@@ -43,6 +43,8 @@ export async function renderPrintCosts(host) {
           onChange: (e) => { state.hideUnpriced = e.target.checked; renderPrintCosts(host); } }),
         el('span', null, 'Hide the sizes I have not priced'))),
 
+    anomalyPanel(rows),
+
     assumptionsPanel(settings, host),
 
     ...PRODUCT_LINES.map((line) => linePanel(line, rows, byName.get(line.vendor), settings, host)),
@@ -50,6 +52,15 @@ export async function renderPrintCosts(host) {
     vendorPanel(vendors, host),
 
     priced.length ? comparisonPanel(rows, vendors, settings) : null);
+}
+
+function anomalyPanel(rows) {
+  const anomalies = costAnomalies(rows);
+  if (!anomalies.length) return null;
+  return el('section', { class: 'panel alert warn' },
+    el('h2', null, 'Worth a second look'),
+    el('p', { class: 'hint' }, 'A bigger print costing less is usually a sale price. Build a retail price on one and it breaks when the sale ends.'),
+    el('ul', { class: 'link-list' }, anomalies.map((a) => el('li', { text: a.message }))));
 }
 
 function assumptionsPanel(settings, host) {
@@ -292,10 +303,14 @@ function csvUploadButton(host) {
         if (!result.updated.length) {
           toast(`Nothing changed. ${result.unchanged} rows matched what is already here.`, 'warn');
         } else {
+          const changed = result.updated.length - result.created.length;
+          const parts = [];
+          if (changed) parts.push(`update ${changed} row${changed === 1 ? '' : 's'}`);
+          if (result.created.length) parts.push(`add ${result.created.length} size${result.created.length === 1 ? '' : 's'} this device has not seen`);
           const ok = await confirmDialog(
-            `Update ${result.updated.length} row${result.updated.length === 1 ? '' : 's'} from ${file.name}?`
-            + (result.unknown.length ? ` ${result.unknown.length} row(s) had an id this app does not know and will be skipped.` : ''),
-            { confirmText: 'Update', tone: 'primary' },
+            `From ${file.name}: ${parts.join(', and ')}?`
+            + (result.unknown.length ? ` ${result.unknown.length} row(s) carried no usable size and will be skipped.` : ''),
+            { confirmText: 'Import', tone: 'primary' },
           );
           if (ok) {
             await putMany('print_costs', result.updated.map((r) => ({ ...r, updated_at: new Date().toISOString() })));
