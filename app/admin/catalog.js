@@ -142,7 +142,7 @@ function thumb(artwork) {
     onError: () => mount(holder, el('span', { class: 'muted small' }, 'missing')),
   }));
 
-  urlFor(image.id, 'thumb').then((url) => {
+  urlFor(artwork.id, image.id, 'thumb').then((url) => {
     if (url) { trackUrl(url); show(url); return; }
     if (image.thumb_path || image.web_path) { show(image.thumb_path || image.web_path); return; }
     mount(holder, el('span', { class: 'muted small' }, 'missing'));

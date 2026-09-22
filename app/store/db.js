@@ -6,6 +6,7 @@
 import {
   STORES, BLOB_STORES, buildExport, parseImport, planImport, exportFilename, encodeBlobRows,
 } from './backup.js';
+import { normaliseBlobRows } from '../images/photos.js';
 import { DEFAULT_SETTINGS, withDefaults } from './settings.js';
 
 const DB_NAME = 'hightide-private';
@@ -251,7 +252,12 @@ export async function applyImport(plan) {
 
 async function applyImportNow(plan) {
   for (const store of STORES) {
-    const rows = plan.stores[store]?.rows ?? [];
+    let rows = plan.stores[store]?.rows ?? [];
+    // An export written before blob ids were namespaced is still a valid
+    // backup. Each row says which artwork it belongs to, so the right key can
+    // be rebuilt on the way in — which is what lets an old file restore a
+    // piece whose pixels a collision overwrote.
+    if (BLOB_STORES.includes(store)) rows = normaliseBlobRows(rows);
     if (plan.mode === 'replace') await clearStore(store);
     await putMany(store, rows);
   }

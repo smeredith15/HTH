@@ -89,11 +89,14 @@ test('only artworks whose photos changed are queued for upload', () => {
 
 test('an artwork whose pixels are missing locally is queued for download', () => {
   const arts = [{ id: 'golf-bag', images: [{ id: 'straight_on' }, { id: 'in_room' }] }];
-  assert.deepEqual(blobIdsFor(arts[0]), ['straight_on-web', 'straight_on-thumb', 'in_room-web', 'in_room-thumb']);
+  assert.deepEqual(blobIdsFor(arts[0]), [
+    'golf-bag/straight_on-web', 'golf-bag/straight_on-thumb',
+    'golf-bag/in_room-web', 'golf-bag/in_room-thumb',
+  ]);
   assert.deepEqual(bundlesToPull(arts, []).map((b) => b.id), ['golf-bag']);
   assert.deepEqual(bundlesToPull(arts, blobIdsFor(arts[0])), [], 'nothing to fetch once they are all here');
   // A half-fetched bundle still counts as missing.
-  assert.equal(bundlesToPull(arts, ['straight_on-web', 'straight_on-thumb']).length, 1);
+  assert.equal(bundlesToPull(arts, ['golf-bag/straight_on-web', 'golf-bag/straight_on-thumb']).length, 1);
 });
 
 test('the records half carries every store except the pixels', () => {
@@ -257,8 +260,8 @@ test('photographs travel as their own bundle, and only once', async () => {
   const phone = fakeDevice(mk(), key, {
     artworks: [art('golf-bag', { images })],
     images_blobs: [
-      { id: 'straight_on-web', artwork_id: 'golf-bag', blob: { __blob_base64: true, data: 'AAAA', type: 'image/jpeg', size: 3 } },
-      { id: 'straight_on-thumb', artwork_id: 'golf-bag', blob: { __blob_base64: true, data: 'BBBB', type: 'image/jpeg', size: 3 } },
+      { id: 'golf-bag/straight_on-web', artwork_id: 'golf-bag', blob: { __blob_base64: true, data: 'AAAA', type: 'image/jpeg', size: 3 } },
+      { id: 'golf-bag/straight_on-thumb', artwork_id: 'golf-bag', blob: { __blob_base64: true, data: 'BBBB', type: 'image/jpeg', size: 3 } },
     ],
   });
 
@@ -278,7 +281,7 @@ test('photographs travel as their own bundle, and only once', async () => {
   const desktop = fakeDevice(mk(), key);
   await pull(desktop.io);
   assert.equal(desktop.store.images_blobs.length, 2);
-  assert.deepEqual(desktop.store.images_blobs.map((r) => r.id).sort(), ['straight_on-thumb', 'straight_on-web']);
+  assert.deepEqual(desktop.store.images_blobs.map((r) => r.id).sort(), ['golf-bag/straight_on-thumb', 'golf-bag/straight_on-web']);
 });
 
 // Photo bundles run to megabytes, and GitHub stops inlining content at 1 MB.
@@ -290,7 +293,7 @@ test('a bundle too big to inline is fetched through the blob API instead', async
   const images = [{ id: 'straight_on', added_at: 'x', original_bytes: 1 }];
   const phone = fakeDevice(mk(), key, {
     artworks: [art('golf-bag', { images })],
-    images_blobs: [{ id: 'straight_on-web', artwork_id: 'golf-bag', blob: { __blob_base64: true, data: 'A'.repeat(500), type: 'image/jpeg', size: 300 } }],
+    images_blobs: [{ id: 'golf-bag/straight_on-web', artwork_id: 'golf-bag', blob: { __blob_base64: true, data: 'A'.repeat(500), type: 'image/jpeg', size: 300 } }],
   });
   await push(phone.io);
 

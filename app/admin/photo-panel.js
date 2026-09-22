@@ -124,7 +124,7 @@ function imageBlock(artwork, image, rowLabel, onChange) {
     'aria-label': `View the ${rowLabel.toLowerCase()} photograph full size`,
     onClick: () => openPhoto(artwork, image),
   });
-  urlFor(image.id, 'thumb').then((url) => {
+  urlFor(artwork.id, image.id, 'thumb').then((url) => {
     if (url) mount(thumb, el('img', { src: trackUrl(url), alt: image.alt || rowLabel, loading: 'lazy' }));
     else mount(thumb, el('span', { class: 'muted small' }, 'missing'));
   });

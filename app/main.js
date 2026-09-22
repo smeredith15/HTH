@@ -135,6 +135,17 @@ async function boot() {
     await patchSettings({ persistence_requested: true, persistence_granted: !!result.persisted });
   }
 
+  // Photo pixels used to be keyed without the artwork in front, so two pieces
+  // with a `straight_on` shared one key and the second overwrote the first.
+  // Rename every old row before anything reads one.
+  const { migrateBlobIds } = await import('./images/photos.js');
+  const migrated = await migrateBlobIds();
+  if (migrated.moved) {
+    // The next sync must re-upload every bundle: the ids inside them changed.
+    const { writeStateForMigration } = await import('./store/sync-runner.js');
+    await writeStateForMigration({ pushed: {}, photo_sha: {} }).catch(() => {});
+  }
+
   // The print-cost template lays itself down once and tops up on later builds.
   const { seedPrintCosts, migratePrintCosts } = await import('./store/print-costs.js');
   await seedPrintCosts();

@@ -6,10 +6,10 @@ import {
 } from '../app/images/resize.js';
 import {
   PHOTO_CHECKLIST, SHOOTING_GUIDE, checklistFor, checklistProgress, missingAltText,
-  nextImageId, webPathFor, thumbPathFor, unclaimedImages,
+  nextImageId, webPathFor, thumbPathFor, unclaimedImages, blobId, normaliseBlobRows,
 } from '../app/images/photos.js';
 import {
-  newArtwork, photographBeforeItLeaves, snoozeUntil, printLimits,
+  newArtwork, slugify, photographBeforeItLeaves, snoozeUntil, printLimits,
   imageLongEdge, printSource,
   PRIVATE_IMAGE_FIELDS, PUBLIC_IMAGE_FIELDS,
 } from '../app/store/schema.js';
@@ -283,4 +283,58 @@ test('measuring a TIFF says what to do instead of just refusing', async () => {
       return true;
     },
   );
+});
+
+// --- where the pixels are stored -------------------------------------------
+//
+// The bug this guards against destroyed real photographs. Blob ids were
+// `${imageId}-${kind}` with no artwork in them, and image ids are only unique
+// *within* an artwork — every piece gets a `straight_on`. `images_blobs` is one
+// flat keyPath store, so photographing a second piece silently overwrote the
+// first one's pixels while its records went on pointing at them. The golf bag
+// lost its straight-on and its raking detail to a portrait.
+
+test('two pieces can each have a straight_on without colliding', () => {
+  assert.notEqual(
+    blobId('golf-bag', 'straight_on', 'web'),
+    blobId('rose-glasses-portrait', 'straight_on', 'web'),
+  );
+  assert.equal(blobId('golf-bag', 'straight_on', 'web'), 'golf-bag/straight_on-web');
+});
+
+test('every key a catalog could produce is unique', () => {
+  // Two pieces, the same roles, the same duplicate-role suffixes.
+  const pieces = ['golf-bag', 'rose-glasses-portrait', 'moose'];
+  const images = ['straight_on', 'straight_on-2', 'detail_raking', 'in_room', 'other'];
+  const keys = [];
+  for (const piece of pieces) {
+    for (const image of images) {
+      for (const kind of ['web', 'thumb']) keys.push(blobId(piece, image, kind));
+    }
+  }
+  assert.equal(new Set(keys).size, keys.length, 'a repeated key is a photograph overwritten');
+});
+
+// A slug can never contain "/", so the separator cannot be forged by an id.
+test('the separator cannot appear in an id', () => {
+  assert.ok(!slugify('golf bag / straight on').includes('/'));
+  assert.equal(blobId('a', 'b', 'web').split('/').length, 2);
+});
+
+// Old exports and old sync bundles remain valid backups, and are the only way
+// back for pixels a collision already overwrote.
+test('a flat id from an old file is rebuilt against its own artwork', () => {
+  const rows = normaliseBlobRows([
+    { id: 'straight_on-web', artwork_id: 'golf-bag', blob: 'x' },
+    { id: 'straight_on-web', artwork_id: 'rose-glasses-portrait', blob: 'y' },
+  ]);
+  assert.deepEqual(rows.map((r) => r.id), ['golf-bag/straight_on-web', 'rose-glasses-portrait/straight_on-web']);
+  assert.equal(new Set(rows.map((r) => r.id)).size, 2, 'the old collision does not survive the repair');
+});
+
+test('an already-namespaced row is left alone, and a row with no artwork is untouched', () => {
+  const already = { id: 'golf-bag/straight_on-web', artwork_id: 'golf-bag' };
+  assert.deepEqual(normaliseBlobRows([already]), [already]);
+  const orphan = { id: 'straight_on-web' };
+  assert.deepEqual(normaliseBlobRows([orphan]), [orphan]);
 });

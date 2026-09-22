@@ -9,7 +9,7 @@ import { blobFor, readableBytes } from '../images/photos.js';
 import { printLimits } from '../store/schema.js';
 
 export async function openPhoto(artwork, image) {
-  const blob = await blobFor(image.id, 'web');
+  const blob = await blobFor(artwork.id, image.id, 'web');
   if (!blob) {
     toast('That photo is missing from this device. Import an export to restore it.', 'warn');
     return;

@@ -12,7 +12,7 @@ import {
   photographBeforeItLeaves, snoozeUntil, printSource,
 } from '../store/schema.js';
 import { photoPanel } from './photo-panel.js';
-import { missingAltText, measureFile } from '../images/photos.js';
+import { missingAltText, measureFile, imagesMissingPixels } from '../images/photos.js';
 
 const RIGHTS_TONE = { yes: 'ok', ask_first: 'warn', no: 'bad', unknown: 'muted' };
 
@@ -59,6 +59,9 @@ function detail(artwork, settings, reload) {
       : null,
 
     photographPrompt(artwork, reload),
+
+    // Filled in a tick later: it has to read the blob store.
+    missingPixelsAlert(artwork),
 
     missingAltText(artwork).length
       ? el('div', { class: 'alert warn' },
@@ -135,6 +138,28 @@ function detail(artwork, settings, reload) {
 
     el('div', { class: 'row end danger-zone' },
       el('button', { class: 'btn danger ghost', type: 'button', onClick: () => remove(artwork) }, 'Delete')));
+}
+
+/**
+ * A record can outlive its pixels. It happened for real: blob ids were not
+ * namespaced by artwork, so a second piece's `straight_on` overwrote the
+ * first's, and the record went on claiming a photograph that was gone. Saying
+ * so is the only way it gets re-added.
+ */
+function missingPixelsAlert(artwork) {
+  const host = el('div');
+  imagesMissingPixels(artwork).then((missing) => {
+    if (!missing.length) return;
+    mount(host, el('div', { class: 'alert bad' },
+      el('strong', null,
+        `${missing.length} photo${missing.length === 1 ? '' : 's'} on this record ${missing.length === 1 ? 'has' : 'have'} no image file on this device: `),
+      missing.map((i) => label(i.role)).join(', '),
+      '. ',
+      el('span', null,
+        'The record survived but the picture did not. Use Replace on those rows to add the file again, '
+        + 'or import an export that still has it.')));
+  }).catch(() => {});
+  return host;
 }
 
 /** §6.2's most important prompt, and it has to be dismissible. */

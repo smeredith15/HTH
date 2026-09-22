@@ -62,7 +62,39 @@ export const QUALITY_FLAG_LABELS = {
   cluttered_background: 'Cluttered background',
 };
 
-const blobId = (imageId, kind) => `${imageId}-${kind}`;
+/**
+ * The key a photograph's pixels are stored under.
+ *
+ * This used to be `${imageId}-${kind}` with no artwork in it, and image ids are
+ * only unique *within* an artwork — every piece gets one called `straight_on`.
+ * `images_blobs` is one flat keyPath store, so photographing a second piece
+ * overwrote the first one's pixels: the golf bag's straight-on and raking
+ * detail were replaced by the rose-glasses portrait's, silently, with the
+ * records still pointing at them.
+ *
+ * The artwork id goes in front. `/` cannot appear in a slug, so it cannot
+ * collide with an image id.
+ */
+export const blobId = (artworkId, imageId, kind) => `${artworkId}/${imageId}-${kind}`;
+
+/**
+ * Put a blob row back under the right key.
+ *
+ * Old exports and sync bundles written before the namespace carry the flat id,
+ * and every one of those files is still a legitimate backup. The row already
+ * says which artwork it belongs to, so the correct key can always be rebuilt —
+ * which means an old export of the golf bag restores the golf bag, rather than
+ * fighting the portrait for one shared key.
+ */
+export function normaliseBlobRow(row) {
+  if (!row?.id || !row.artwork_id) return row;
+  if (row.id.includes('/')) return row;
+  return { ...row, id: `${row.artwork_id}/${row.id}` };
+}
+
+export function normaliseBlobRows(rows = []) {
+  return rows.map(normaliseBlobRow);
+}
 
 export function webPathFor(artworkId, imageId) {
   return `images/${artworkId}/${imageId}.jpg`;
@@ -92,8 +124,8 @@ export async function addPhoto(artwork, file, { role = 'straight_on', alt = null
   const processed = await processPhoto(file);
   const id = nextImageId(artwork, role);
 
-  await put('images_blobs', { id: blobId(id, 'web'), artwork_id: artwork.id, blob: processed.web.blob });
-  await put('images_blobs', { id: blobId(id, 'thumb'), artwork_id: artwork.id, blob: processed.thumb.blob });
+  await put('images_blobs', { id: blobId(artwork.id, id, 'web'), artwork_id: artwork.id, blob: processed.web.blob });
+  await put('images_blobs', { id: blobId(artwork.id, id, 'thumb'), artwork_id: artwork.id, blob: processed.thumb.blob });
 
   const image = {
     id,
@@ -122,28 +154,63 @@ export async function addPhoto(artwork, file, { role = 'straight_on', alt = null
 }
 
 export async function removePhoto(artwork, imageId) {
-  await remove('images_blobs', blobId(imageId, 'web')).catch(() => {});
-  await remove('images_blobs', blobId(imageId, 'thumb')).catch(() => {});
+  await remove('images_blobs', blobId(artwork.id, imageId, 'web')).catch(() => {});
+  await remove('images_blobs', blobId(artwork.id, imageId, 'thumb')).catch(() => {});
   return { ...artwork, images: (artwork.images ?? []).filter((i) => i.id !== imageId) };
 }
 
-export async function blobFor(imageId, kind = 'thumb') {
-  const record = await get('images_blobs', blobId(imageId, kind));
+export async function blobFor(artworkId, imageId, kind = 'thumb') {
+  const record = await get('images_blobs', blobId(artworkId, imageId, kind));
   return record?.blob ?? null;
 }
 
 /** An object URL for display. The caller revokes it. */
-export async function urlFor(imageId, kind = 'thumb') {
-  const blob = await blobFor(imageId, kind);
+export async function urlFor(artworkId, imageId, kind = 'thumb') {
+  const blob = await blobFor(artworkId, imageId, kind);
   return blob ? URL.createObjectURL(blob) : null;
+}
+
+/**
+ * Rename every pre-namespace row. A row whose artwork already holds a
+ * namespaced copy is dropped rather than overwriting it — the newer write is
+ * the one the app has been using.
+ *
+ * Nothing is recovered here. Pixels a collision already overwrote are gone,
+ * and after this they read as missing instead of showing another piece's
+ * photograph, which is the honest answer and the one that can be acted on.
+ */
+export async function migrateBlobIds() {
+  const rows = await getAll('images_blobs');
+  const have = new Set(rows.map((r) => r.id));
+  const moved = [];
+  for (const row of rows) {
+    if (!row.id || row.id.includes('/') || !row.artwork_id) continue;
+    const next = `${row.artwork_id}/${row.id}`;
+    if (!have.has(next)) {
+      await put('images_blobs', { ...row, id: next });
+      have.add(next);
+      moved.push(next);
+    }
+    await remove('images_blobs', row.id).catch(() => {});
+  }
+  return { moved: moved.length };
+}
+
+/**
+ * Images whose record exists but whose pixels do not. After the collision that
+ * prompted the namespace, saying so plainly beats a broken thumbnail.
+ */
+export async function imagesMissingPixels(artwork) {
+  const have = new Set((await getAll('images_blobs')).map((r) => r.id));
+  return (artwork?.images ?? []).filter((i) => !have.has(blobId(artwork.id, i.id, 'web')));
 }
 
 export async function orphanedBlobs(artworks) {
   const live = new Set();
   for (const artwork of artworks) {
     for (const image of artwork.images ?? []) {
-      live.add(blobId(image.id, 'web'));
-      live.add(blobId(image.id, 'thumb'));
+      live.add(blobId(artwork.id, image.id, 'web'));
+      live.add(blobId(artwork.id, image.id, 'thumb'));
     }
   }
   return (await getAll('images_blobs')).filter((b) => !live.has(b.id));

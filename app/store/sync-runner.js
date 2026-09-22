@@ -8,6 +8,7 @@ import {
   getMeta, setMeta, deleteMeta, readEverything, applyImport, getAll, putMany, onChange,
 } from './db.js';
 import { encodeBlobRows, decodeBlobRows } from './backup.js';
+import { normaliseBlobRows } from '../images/photos.js';
 import { createClient } from './github.js';
 import { newKeyfile, unlock, WrongPassphraseError } from './crypto.js';
 import { sync as runSync, pull as runPull, push as runPush, KEYFILE_PATH } from './sync.js';
@@ -46,6 +47,16 @@ export async function forgetConfig() {
 
 export async function readState() {
   return (await getMeta(STATE_KEY)) ?? {};
+}
+
+/**
+ * Force the next sync to re-upload every photo bundle. The blob ids inside the
+ * bundles already on GitHub are the pre-namespace ones; the digests that decide
+ * what to send are computed from the records, which did not change, so without
+ * this nothing would ever be resent.
+ */
+export async function writeStateForMigration(patch) {
+  return writeState(patch);
 }
 
 async function writeState(patch) {
@@ -123,7 +134,9 @@ async function io() {
     readBlobs: async (artworkId) => encodeBlobRows(
       (await getAll('images_blobs')).filter((row) => row.artwork_id === artworkId),
     ),
-    putBlobs: async (rows) => putMany('images_blobs', decodeBlobRows(rows)),
+    // Bundles pushed before the namespace carry flat ids; repair them on the
+    // way in rather than letting two pieces fight over one key.
+    putBlobs: async (rows) => putMany('images_blobs', normaliseBlobRows(decodeBlobRows(rows))),
   };
 }
 
