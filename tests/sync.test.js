@@ -7,7 +7,7 @@ import {
 } from '../app/store/sync.js';
 import {
   newKeyfile, unlock, encryptJSON, decryptJSON, isEnvelope, WrongPassphraseError,
-  PBKDF2_ITERATIONS,
+  PBKDF2_ITERATIONS, checkPassphrase, MIN_PASSPHRASE_LENGTH,
 } from '../app/store/crypto.js';
 import { createClient, encodeBase64, decodeBase64, ConflictError, EmptyRepoError, GitHubError } from '../app/store/github.js';
 import { newArtwork } from '../app/store/schema.js';
@@ -433,4 +433,32 @@ test('an empty repository says what to do about it, not "pull first"', async () 
       return true;
     },
   );
+});
+
+// --- choosing one ----------------------------------------------------------
+
+test('a passphrase too short to survive an offline attack is refused', () => {
+  assert.equal(checkPassphrase('').ok, false);
+  assert.equal(checkPassphrase('golfbag').ok, false);
+  assert.equal(checkPassphrase('a'.repeat(MIN_PASSPHRASE_LENGTH - 1)).ok, false);
+  assert.match(checkPassphrase('short').reason, /at least 12 characters/i);
+});
+
+test('a workable one passes, and a long one passes without comment', () => {
+  const workable = checkPassphrase('scorched birch 22');
+  assert.equal(workable.ok, true);
+  assert.match(workable.reason, /four or five unrelated words/);
+
+  const long = checkPassphrase('deck railing scorched anvil harbour');
+  assert.equal(long.ok, true);
+  assert.equal(long.reason, null, 'nothing more to say about it');
+});
+
+// A device joining an existing keyfile has to type whatever made it, even if
+// this build would no longer accept that as a new passphrase.
+test('the length floor never blocks unlocking an existing keyfile', async () => {
+  const { keyfile } = await newKeyfile('short');
+  assert.equal(checkPassphrase('short').ok, false);
+  const key = await unlock('short', keyfile);
+  assert.ok(key, 'an old keyfile still opens');
 });

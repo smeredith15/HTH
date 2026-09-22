@@ -12,6 +12,7 @@ import {
   unlockWithPassphrase, hasRemoteKeyfile, syncNow, pullNow, pushNow, onSyncStatus,
   startAutoSync, stopAutoSync, SETTLE_MS, WrongPassphraseError,
 } from '../store/sync-runner.js';
+import { checkPassphrase } from '../store/crypto.js';
 import { readableBytes } from '../images/resize.js';
 import { exportSize } from '../store/db.js';
 
@@ -118,6 +119,16 @@ function unlockPanel(config, configured, log, reload) {
   if (!configured || isUnlocked()) return null;
 
   const input = el('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Sync passphrase' });
+  const advice = el('p', { class: 'hint' });
+  // Only shown while choosing one. A device joining an existing keyfile has to
+  // type what was already used, and being told it is too short would be both
+  // wrong and useless.
+  input.addEventListener('input', () => {
+    const verdict = checkPassphrase(input.value);
+    advice.className = verdict.ok ? 'hint' : 'hint warn-text';
+    advice.textContent = input.value ? (verdict.reason ?? `${input.value.length} characters. Good.`) : '';
+  });
+
   const submit = async (event) => {
     event?.preventDefault();
     const passphrase = input.value;
@@ -126,11 +137,14 @@ function unlockPanel(config, configured, log, reload) {
     try {
       const remote = await hasRemoteKeyfile(config);
       if (!remote) {
+        const verdict = checkPassphrase(passphrase);
+        if (!verdict.ok) { toast(verdict.reason, 'warn'); return; }
         const ok = await confirmDialog(
-          'That repository has no keyfile yet, so this device would be the first one. '
-          + 'Everything you sync from here on is protected by this passphrase and nothing else. '
-          + 'If you lose it, the synced copy cannot be recovered by anyone, including me.',
-          { confirmText: 'Set it up', tone: 'primary' },
+          'That repository has no keyfile yet, so this device would be the first one, and this '
+          + 'passphrase becomes the one every other device has to use.\n\n'
+          + 'Write it down somewhere that is not this app before you continue. There is no reset: '
+          + 'lose it and the synced copy cannot be opened by anyone, including me.',
+          { confirmText: 'I have written it down', tone: 'primary' },
         );
         if (!ok) return;
       }
@@ -152,6 +166,7 @@ function unlockPanel(config, configured, log, reload) {
       'The passphrase is never stored, so it is asked for once each time the app is opened. '
       + 'Deriving the key takes a second on purpose — that is what makes it expensive to guess.'),
     field('Passphrase', input),
+    advice,
     el('div', { class: 'row' }, el('button', { class: 'btn primary', type: 'submit' }, 'Unlock')));
 }
 

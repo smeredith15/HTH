@@ -136,8 +136,10 @@ export function toast(message, tone = '') {
 
 export function confirmDialog(message, { confirmText = 'Confirm', tone = 'danger' } = {}) {
   return new Promise((resolve) => {
+    // A blank line in the message is a paragraph break. The warnings that most
+    // need reading are the longest, and a wall of text is a wall of text.
     const dialog = el('dialog', { class: 'sheet' },
-      el('p', { text: message }),
+      String(message).split(/\n{2,}/).map((para) => el('p', { text: para })),
       el('div', { class: 'row end' },
         el('button', { class: 'btn ghost', type: 'button', onClick: () => { dialog.close(); resolve(false); } }, 'Cancel'),
         el('button', { class: `btn ${tone}`, type: 'button', onClick: () => { dialog.close(); resolve(true); } }, confirmText)));
