@@ -23,6 +23,9 @@ export class GitHubError extends Error {
 
 export class ConflictError extends GitHubError {}
 
+/** A repository with no commits at all has no branch to write a file onto. */
+export class EmptyRepoError extends GitHubError {}
+
 const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
 
 /**
@@ -111,6 +114,17 @@ export function createClient({
 }
 
 function errorFor(status, detail, path) {
+  // A repository created without a README has no commits and no default
+  // branch, and GitHub reports that as a 409 — the same status as a stale sha.
+  // Reading it as a conflict sends you to pull from a repository that has
+  // nothing in it, which is the first thing anyone setting sync up would hit.
+  if (/repository is empty/i.test(detail || '')) {
+    return new EmptyRepoError(
+      'That repository has no commits yet, so there is no branch to write to. '
+      + 'Add a README to it on GitHub — one file is enough — and try again.',
+      { status, path },
+    );
+  }
   if (status === 409 || status === 422) {
     return new ConflictError(
       'That file changed on GitHub since this device last read it. Pull first, then push.',

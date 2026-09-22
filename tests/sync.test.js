@@ -9,7 +9,7 @@ import {
   newKeyfile, unlock, encryptJSON, decryptJSON, isEnvelope, WrongPassphraseError,
   PBKDF2_ITERATIONS,
 } from '../app/store/crypto.js';
-import { createClient, encodeBase64, decodeBase64, ConflictError, GitHubError } from '../app/store/github.js';
+import { createClient, encodeBase64, decodeBase64, ConflictError, EmptyRepoError, GitHubError } from '../app/store/github.js';
 import { newArtwork } from '../app/store/schema.js';
 import { STORES } from '../app/store/backup.js';
 
@@ -410,4 +410,27 @@ test('the sync files all live under one directory', () => {
   assert.ok(KEYFILE_PATH.startsWith('data/sync/'));
   assert.ok(photosPath('golf-bag').startsWith('data/sync/photos/'));
   assert.equal(photosPath('golf-bag'), 'data/sync/photos/golf-bag.enc.json');
+});
+
+// The repository you are told to make for sync is brand new, so this is the
+// very first thing anyone will hit. GitHub reports it as a 409, the same status
+// as a stale sha, and "pull first" is useless advice for an empty repository.
+test('an empty repository says what to do about it, not "pull first"', async () => {
+  const client = createClient({
+    owner: 'o', repo: 'hth-sync', token: 't',
+    fetch: async () => ({
+      ok: false, status: 409,
+      text: async () => JSON.stringify({ message: 'Git Repository is empty.' }),
+      json: async () => ({}),
+    }),
+  });
+  await assert.rejects(
+    () => client.write(RECORDS_PATH, 'x', { message: 'm' }),
+    (err) => {
+      assert.ok(err instanceof EmptyRepoError);
+      assert.ok(!(err instanceof ConflictError), 'it must not be retried as a conflict');
+      assert.match(err.message, /Add a README/);
+      return true;
+    },
+  );
 });

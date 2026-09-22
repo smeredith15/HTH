@@ -120,7 +120,11 @@ so neither device can overwrite the other's afternoon. Auto-sync pushes about
 twenty seconds after edits settle, and when the tab is hidden. Deletions do not
 propagate: merging keeps the newer record and never removes one.
 
-Sync into a **private** repository, not the public one serving the portfolio.
+Sync into a **second, private** repository — not the one serving the portfolio.
+Private repositories are free and unlimited; Pages keeps deploying from the
+public one exactly as it does now, and nothing here needs a paid plan. Create
+it with a README, because a repository with no commits has no branch to write
+onto and GitHub reports that as a 409.
 
 ### What Phase 1 covers
 

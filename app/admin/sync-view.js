@@ -38,11 +38,24 @@ export async function renderSync(host) {
       + 'exporting to a file as well.'),
 
     el('section', { class: 'panel alert warn' },
-      el('strong', null, 'Sync into a private repository, not this one. '),
-      'The repository serving the public portfolio is public, and anything committed to it can be '
+      el('strong', null, 'Sync into a second, private repository. '),
+      'Not the one serving the portfolio. That one is public, so anything committed to it can be '
       + 'downloaded by anyone — encrypted, but downloaded, and then guessed at offline for as long '
-      + 'as they like. A separate private repository removes that entirely. GitHub gives you '
-      + 'unlimited private repositories for free.'),
+      + 'as they like. It would also put a commit in the portfolio’s history every time you edited '
+      + 'a price, and rebuild the site each time. '),
+    el('section', { class: 'panel filter-drawer' },
+      el('details', null,
+        el('summary', null, 'How to make the sync repository'),
+        el('ol', { class: 'guide-list' },
+          el('li', null, 'On GitHub: New repository, named something like ', el('code', null, 'hth-sync'), '.'),
+          el('li', null, el('strong', null, 'Private'), '. Private repositories are free and unlimited.'),
+          el('li', null, el('strong', null, 'Tick “Add a README file.”'),
+            ' A repository with no commits has no branch, and there is nothing for sync to write onto.'),
+          el('li', null, 'Then make the token above, with Repository access: only select repositories → this new one.')),
+        el('p', { class: 'hint' },
+          'This changes nothing about the portfolio. It stays public, Pages keeps deploying from it, '
+          + 'and none of that needs a paid plan. The sync repository is never served to anyone — the '
+          + 'app reads and writes it through the API with your token.'))),
 
     statusPanel(config, state, configured, log, reload),
     unlockPanel(config, configured, log, reload),
