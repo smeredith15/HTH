@@ -45,9 +45,15 @@ export function photoDigest(artwork) {
     .join('|');
 }
 
-/** The blob ids an artwork's images need in order to be viewable. */
+/**
+ * The blob ids an artwork's images need in order to be viewable. Namespaced by
+ * artwork, because image ids repeat across pieces — every one has a
+ * `straight_on` — and a flat key let one piece's photographs overwrite
+ * another's.
+ */
 export function blobIdsFor(artwork) {
-  return (artwork?.images ?? []).flatMap((i) => [`${i.id}-web`, `${i.id}-thumb`]);
+  return (artwork?.images ?? [])
+    .flatMap((i) => [`${artwork.id}/${i.id}-web`, `${artwork.id}/${i.id}-thumb`]);
 }
 
 /** Artworks whose photos have changed since this device last pushed them. */

@@ -510,6 +510,30 @@ thing with an extra step, so the key lives in a module variable and a reload
 starts locked. The cost is re-entering a passphrase once per session; the app
 says so on boot rather than letting edits pile up unsynced in silence.
 
+### Blob keys carry the artwork id
+
+They did not, and it destroyed photographs.
+
+`blobId` was `${imageId}-${kind}`, and `nextImageId` only checks ids within one
+artwork — so every piece gets an image called `straight_on`. `images_blobs` is a
+single keyPath store, so the second piece photographed wrote over the first
+piece's pixels, silently, while both records went on pointing at the same key.
+The golf bag's straight-on and raking detail were replaced by the rose-glasses
+portrait's. The catalog card showed a portrait under the golf bag's title, which
+is how it was noticed.
+
+The key is now `${artworkId}/${imageId}-${kind}`. A slug cannot contain `/`, so
+an image id can never forge the separator. `migrateBlobIds` renames old rows on
+boot and drops any whose namespaced key already exists, which surfaces the loss
+rather than papering over it — an image with no file now says so on the record
+instead of showing another piece's photograph.
+
+Old exports and old sync bundles are still valid backups: every blob row records
+its `artwork_id`, so `normaliseBlobRows` rebuilds the right key on the way in.
+That is what makes an old export able to restore a piece whose pixels a
+collision overwrote, and it is applied on import and on sync pull alike.
+`tests/images.test.js` now asserts that no key any catalog could produce repeats.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text
