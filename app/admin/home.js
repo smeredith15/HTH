@@ -5,14 +5,17 @@ import { el, mount, label, relativeDays, pill } from '../ui/dom.js';
 import { listArtworks } from '../store/artworks.js';
 import { getAll, loadSettings, storageEstimate } from '../store/db.js';
 import { listListings, listingsNeedingAttention } from '../store/listings.js';
+import { listPrintCosts } from '../store/print-costs.js';
 import { exportAge } from '../store/backup.js';
 import { effectiveRights, hasUsableMaster, isGone } from '../store/schema.js';
 import { promptQuickAdd } from './catalog.js';
 
 export async function renderHome(host) {
-  const [artworks, listings, backlog, settings, estimate] = await Promise.all([
+  const [artworks, listings, backlog, settings, estimate, printCosts] = await Promise.all([
     listArtworks(), listListings(), getAll('backlog'), loadSettings(), storageEstimate(),
+    listPrintCosts(),
   ]);
+  const pricedSizes = printCosts.filter((row) => Number(row.unit_cost) > 0).length;
   const attention = listingsNeedingAttention(listings, artworks, settings);
   const age = exportAge(settings.last_exported_at);
 
@@ -55,6 +58,14 @@ export async function renderHome(host) {
         el('h2', null, 'Photograph before they leave'),
         el('p', null, `${needsPhoto.length} on-hand ${needsPhoto.length === 1 ? 'piece has' : 'pieces have'} no straight-on photo.`),
         listOf(needsPhoto))
+      : null,
+
+    printCosts.length && !pricedSizes
+      ? el('section', { class: 'panel alert warn' },
+        el('h2', null, 'No print costs entered yet'),
+        el('p', null, 'Until a lab price is recorded, the app cannot tell you what a print earns, '
+          + 'and the margin columns on every print listing stay blank.'),
+        el('a', { class: 'btn primary', href: '#/print-costs' }, 'Open the print cost template'))
       : null,
 
     attention.length
