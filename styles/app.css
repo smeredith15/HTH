@@ -477,9 +477,12 @@ textarea.mono {
 .photo-controls { margin-top: 0.6rem; }
 .photo-controls .field { margin-bottom: 0.5rem; }
 
-/* A checklist row holding one or more photos: the heading spans the row and
-   each photo stacks beneath it with its own thumbnail. */
-.photo-list li.stacked { grid-template-columns: 1fr; }
+/* A row holding one or more photos: the heading spans the row and each photo
+   stacks beneath it with its own thumbnail. Keyed off the content as well as
+   the class, so a row that forgets `stacked` still lays out rather than
+   folding its controls into the 84 px thumbnail column. */
+.photo-list li.stacked,
+.photo-list li:has(> .photo-group) { grid-template-columns: 1fr; }
 .photo-group { display: grid; gap: 0.6rem; min-width: 0; }
 .photo-item {
   display: grid; grid-template-columns: 84px 1fr; gap: 0.75rem; align-items: start;
@@ -498,7 +501,8 @@ textarea.mono {
 
 @media (max-width: 560px) {
   .photo-list li, .photo-list li.has-photo { grid-template-columns: 64px 1fr; }
-  .photo-list li.stacked { grid-template-columns: 1fr; }
+  .photo-list li.stacked,
+  .photo-list li:has(> .photo-group) { grid-template-columns: 1fr; }
   .photo-item { grid-template-columns: 64px 1fr; }
   .photo-thumb { width: 64px; }
   .photo-list li > label.btn { grid-column: 2; justify-self: start; }

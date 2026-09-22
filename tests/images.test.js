@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  targetSize, qualitySteps, isProcessable, readableBytes,
+  targetSize, qualitySteps, isProcessable, readableBytes, undecodableFormat, measureFile,
   WEB_EDGE, THUMB_EDGE, WEB_TARGET_BYTES, FALLBACK_EDGES, MIN_QUALITY,
 } from '../app/images/resize.js';
 import {
@@ -257,4 +257,30 @@ test('a master that is only a checkbox is not a measurement', () => {
 test('the link to the original is private', () => {
   assert.ok(PRIVATE_IMAGE_FIELDS.includes('source_url'));
   assert.ok(!PUBLIC_IMAGE_FIELDS.includes('source_url'));
+});
+
+// --- measuring a master (§5.4) ---------------------------------------------
+//
+// A print master is most likely to be saved as a TIFF, which is precisely the
+// format no browser will decode. Failing with "not an image" would be both
+// true and useless, because the way round it is two numbers typed by hand.
+
+test('the archival formats are recognised, by type or by extension', () => {
+  assert.equal(undecodableFormat({ type: 'image/tiff', name: 'x.tif' }), 'TIFF');
+  assert.equal(undecodableFormat({ type: '', name: 'golf-bag-master.TIFF' }), 'TIFF');
+  assert.equal(undecodableFormat({ type: '', name: 'golf-bag.psd' }), 'PSD');
+  assert.equal(undecodableFormat({ type: 'image/x-adobe-dng', name: 'a.dng' }), 'DNG');
+  assert.equal(undecodableFormat({ type: 'image/jpeg', name: 'a.jpg' }), null);
+  assert.equal(undecodableFormat({ type: 'image/png', name: 'a.png' }), null);
+});
+
+test('measuring a TIFF says what to do instead of just refusing', async () => {
+  await assert.rejects(
+    () => measureFile({ type: 'image/tiff', name: 'golf-bag-master.tif', size: 1 }),
+    (err) => {
+      assert.match(err.message, /No browser can read a TIFF/);
+      assert.match(err.message, /type them into the two boxes/);
+      return true;
+    },
+  );
 });

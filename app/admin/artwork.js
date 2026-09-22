@@ -440,6 +440,10 @@ export async function renderArtworkEdit(host, { params }) {
       el('p', { class: 'hint' }, 'The master is its own file — the reference shot cropped to the art, at full resolution. '
         + 'It lives outside this repo, on a drive or in cloud storage; only its location and its size are recorded here.'),
       measureButton(draft, masterEdge, () => refreshLimits()),
+      el('p', { class: 'hint' },
+        'Measuring reads the file in this browser and keeps nothing — the master itself is never '
+        + 'stored here. It works on JPEG, PNG and WebP. No browser can read a TIFF, PSD or RAW, so '
+        + 'for those, type the two numbers in by hand.'),
       el('label', { class: 'check' },
         masterEdge.exists = el('input', {
           type: 'checkbox', checked: !!draft.print_master.exists,

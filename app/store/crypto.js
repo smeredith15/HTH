@@ -24,6 +24,47 @@ const VERIFIER_PLAINTEXT = 'hightide-sync-verifier-v1';
 
 export class WrongPassphraseError extends Error {}
 
+/**
+ * The floor, and where it comes from.
+ *
+ * 600,000 PBKDF2 rounds costs an attacker roughly a millisecond per guess on
+ * commodity hardware. That is ruinous for a dictionary of billions and no
+ * obstacle at all to a dictionary of thousands, so the iteration count buys
+ * time only if the passphrase has real entropy behind it. Four random words is
+ * about 2^50 — centuries at that rate. "golfbag2022" is minutes.
+ *
+ * This is a floor, not a judgement: the check below is deliberately crude,
+ * because a strength meter that scores "Password1!" highly is worse than none.
+ */
+export const MIN_PASSPHRASE_LENGTH = 12;
+export const GOOD_PASSPHRASE_LENGTH = 20;
+
+/**
+ * `{ ok, reason }` — `ok: false` blocks, a `reason` with `ok: true` is a
+ * nudge. Never says a passphrase is "strong": nothing here can tell a memorable
+ * phrase from a common one, and claiming otherwise would be the lie that gets
+ * someone to stop thinking about it.
+ */
+export function checkPassphrase(passphrase) {
+  const text = String(passphrase ?? '');
+  if (!text) return { ok: false, reason: 'A passphrase is required.' };
+  if (text.length < MIN_PASSPHRASE_LENGTH) {
+    return {
+      ok: false,
+      reason: `At least ${MIN_PASSPHRASE_LENGTH} characters. This is the only thing protecting the file, `
+        + 'and a short one is guessed offline in minutes however slow the key derivation is.',
+    };
+  }
+  if (text.length < GOOD_PASSPHRASE_LENGTH) {
+    return {
+      ok: true,
+      reason: 'That will work, but four or five unrelated words would be far harder to guess '
+        + 'and easier to remember than something short and clever.',
+    };
+  }
+  return { ok: true, reason: null };
+}
+
 const subtle = () => {
   const c = globalThis.crypto;
   if (!c?.subtle) throw new Error('This browser has no WebCrypto, so sync cannot encrypt anything.');
@@ -43,6 +84,9 @@ export function randomBytes(length) {
  */
 export async function deriveKey(passphrase, salt, iterations = PBKDF2_ITERATIONS) {
   if (!passphrase) throw new Error('A passphrase is required.');
+  // Deliberately not checkPassphrase: a device unlocking against an existing
+  // keyfile must be able to type whatever was used to make it, even if this
+  // build would no longer accept it as a new one.
   const material = await subtle().importKey(
     'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey'],
   );
