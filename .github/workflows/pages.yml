@@ -1,0 +1,51 @@
+# Deploy the app to GitHub Pages.
+#
+# The classic "deploy from a branch" builder never produced a single build for
+# this repository, and it gives no logs to diagnose. This path does: every run
+# shows up under the Actions tab with its output, so a failure can be read
+# instead of guessed at.
+#
+# Requires Settings → Pages → Source: GitHub Actions.
+
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # No dependencies to install — the suite is Node's own test runner.
+      - run: node --test tests/*.test.js
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - id: deployment
+        uses: actions/deploy-pages@v4
