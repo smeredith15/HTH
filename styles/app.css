@@ -483,3 +483,26 @@ textarea.mono {
   .photo-thumb { width: 64px; }
   .photo-list li > label.btn { grid-column: 2; justify-self: start; }
 }
+
+/* --- photo viewer -------------------------------------------------------- */
+
+button.photo-thumb { padding: 0; border: 0; cursor: zoom-in; }
+button.photo-thumb:hover { outline: 2px solid var(--pine); outline-offset: 2px; }
+
+.sheet.viewer { width: min(56rem, calc(100vw - 1.5rem)); padding: 1rem; }
+.viewer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.viewer-head h2 { margin-bottom: 0.1em; }
+.viewer-image {
+  margin: 0.75rem 0;
+  background: var(--char-900); border-radius: var(--radius);
+  display: grid; place-items: center; overflow: hidden;
+}
+.viewer-image img { max-width: 100%; max-height: min(62vh, 40rem); display: block; object-fit: contain; }
+.sheet.viewer .spec-row { grid-template-columns: 11rem 1fr; }
+@media (max-width: 560px) { .sheet.viewer .spec-row { grid-template-columns: 1fr; } }
+
+.callout { padding: 0.7rem 0.9rem; border-radius: var(--radius); background: var(--char-800); }
+.howto { margin-bottom: 1.1rem; }
+.howto h3 { font-size: 0.95rem; margin-bottom: 0.35em; color: var(--birch); }
+.howto ol { margin: 0; padding-left: 1.25rem; color: var(--text-muted); font-size: 0.9rem; }
+.howto li { margin-bottom: 0.3rem; }

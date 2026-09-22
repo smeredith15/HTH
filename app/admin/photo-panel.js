@@ -7,6 +7,7 @@ import {
   addPhoto, removePhoto, urlFor, readableBytes,
 } from '../images/photos.js';
 import { IMAGE_ROLE, QUALITY_FLAG, printLimits } from '../store/schema.js';
+import { openPhoto } from './photo-viewer.js';
 
 // Object URLs created for the thumbnails on screen, revoked when the panel is
 // rebuilt, so a long session does not leak every photo it has ever shown.
@@ -54,7 +55,16 @@ async function draw(host, artwork, onChange) {
 }
 
 function photoRow(artwork, row, onChange) {
-  const thumb = el('div', { class: 'photo-thumb' });
+  // The thumbnail is a button: 64 px is enough to recognise a photo and not
+  // enough to judge one.
+  const thumb = row.image
+    ? el('button', {
+      class: 'photo-thumb', type: 'button',
+      'aria-label': `View the ${row.label.toLowerCase()} photograph full size`,
+      onClick: () => openPhoto(artwork, row.image),
+    })
+    : el('div', { class: 'photo-thumb' });
+
   if (row.image) {
     urlFor(row.image.id, 'thumb').then((url) => {
       if (url) mount(thumb, el('img', { src: trackUrl(url), alt: row.image.alt || row.label, loading: 'lazy' }));
@@ -117,6 +127,7 @@ function imageControls(artwork, image, onChange) {
         ? ` · original ${image.original_width_px} × ${image.original_height_px} px (${readableBytes(image.original_bytes)})`
         : null),
     el('div', { class: 'row' },
+      el('button', { class: 'btn ghost small', type: 'button', onClick: () => openPhoto(artwork, image) }, 'View full size'),
       el('label', { class: 'btn ghost small' }, 'Replace', fileInput(artwork, image.role, onChange, image.id)),
       el('button', { class: 'btn ghost small danger', type: 'button', onClick: async () => {
         const ok = await confirmDialog(`Delete the ${label(image.role)} photo? The original was never kept, so it cannot be recovered.`, { confirmText: 'Delete' });

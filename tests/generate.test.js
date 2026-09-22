@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  generateListing, generateDescription, buildContext, suggestTitle, suggestTags,
+  generateListing, generateDescription, suggestTitle, suggestTags,
   suggestMaterials, suggestCategoryPath, variantLines, commissionPriceLines,
   measuresSentence, originalSizeSentence, formatCutoff,
 } from '../app/listing/generate.js';
-import { render, missingPlaceholders, SEED_TEMPLATES } from '../app/listing/templates.js';
+import { render } from '../app/listing/templates.js';
 import { validateListing } from '../app/listing/validators.js';
 import { SEED_ARTWORKS, SEED_LISTINGS } from '../app/store/seed.js';
 import { DEFAULT_SETTINGS as S } from '../app/store/settings.js';

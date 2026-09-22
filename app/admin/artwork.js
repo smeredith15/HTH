@@ -110,7 +110,8 @@ function detail(artwork, settings, reload) {
 
     section('Print master', [
       row('Exists', artwork.print_master?.exists ? 'Yes' : 'No'),
-      row('Where', artwork.print_master?.location || '— (never in this repo)'),
+      row('Where the file is', artwork.print_master?.location
+        || '— not recorded. The app never holds the full-resolution file; this is where you say what you did with it.'),
       row('Pixels', artwork.print_master?.long_edge_px
         ? `${artwork.print_master.long_edge_px} × ${artwork.print_master.short_edge_px ?? '?'}` : '—'),
       row('Max print size', limits

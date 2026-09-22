@@ -37,7 +37,9 @@ export async function renderHome(host) {
       el('div', null,
         el('h1', null, 'High Tide Handmade'),
         el('p', { class: 'muted' }, 'Catalog of record')),
-      el('button', { class: 'btn primary', type: 'button', onClick: () => promptQuickAdd() }, '+ Quick add')),
+      el('div', { class: 'row' },
+        el('a', { class: 'btn ghost', href: '#/help' }, 'How this works'),
+        el('button', { class: 'btn primary', type: 'button', onClick: () => promptQuickAdd() }, '+ Quick add'))),
 
     backupBanner(age, settings),
 
