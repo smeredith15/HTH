@@ -165,6 +165,23 @@ export function checklistFor(artwork) {
   });
 }
 
+/**
+ * The one photo that stands for the piece in a list: whatever was deliberately
+ * marked primary, else the shot that identifies it fastest. Falls back to the
+ * first photo on file, which is only ever an accident of upload order.
+ */
+const COVER_ORDER = ['primary', 'straight_on', 'in_room', 'scale', 'detail_raking'];
+
+export function coverImage(artwork) {
+  const images = artwork?.images ?? [];
+  if (!images.length) return null;
+  for (const role of COVER_ORDER) {
+    const hit = images.find((i) => i.role === role);
+    if (hit) return hit;
+  }
+  return images.find((i) => i.in_kiosk !== false) ?? images[0];
+}
+
 /** Photos carrying a role the checklist never asks for — `other` and friends. */
 export function unclaimedImages(artwork) {
   const asked = new Set(PHOTO_CHECKLIST.map((c) => c.role));

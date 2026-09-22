@@ -21,6 +21,7 @@ import { renderInventory } from './admin/inventory.js';
 import { renderSnapshots } from './admin/snapshots.js';
 import { renderBackup } from './admin/backup-view.js';
 import { renderSettings } from './admin/settings-view.js';
+import { renderSync } from './admin/sync-view.js';
 
 // Short labels because the phone nav is a six-across bottom bar.
 const NAV = [
@@ -68,6 +69,7 @@ const NAV_OWNER = {
   '/reprice': '/money',
   '/reports': '/money',
   '/snapshots': '/money',
+  '/sync': '/backup',
 };
 
 function navTargetFor(path) {
@@ -114,6 +116,7 @@ route('/reports', withChrome(renderReports));
 route('/inventory', withChrome(renderInventory));
 route('/snapshots', withChrome(renderSnapshots));
 route('/backup', withChrome(renderBackup));
+route('/sync', withChrome(renderSync));
 route('/help', withChrome(renderHelp));
 route('/settings', withChrome(renderSettings));
 setNotFound(withChrome(async (host, { path }) => mount(host,
@@ -147,6 +150,13 @@ async function boot() {
     if (caught.added || caught.refreshed) {
       toast(`Appendix A updated: ${caught.added} added, ${caught.refreshed} refreshed${caught.kept ? `, ${caught.kept} of your edits kept` : ''}.`, 'ok');
     }
+  }
+
+  // Sync holds its key in memory only, so a reload always starts locked. Say
+  // so once rather than letting edits pile up unsynced in silence.
+  const { isConfigured } = await import('./store/sync-runner.js');
+  if (await isConfigured()) {
+    toast('Sync is set up but locked. Open Sync and enter the passphrase.', 'warn');
   }
 
   document.addEventListener('keydown', (event) => {

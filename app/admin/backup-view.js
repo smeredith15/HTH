@@ -40,6 +40,17 @@ export async function renderBackup(host) {
           : null)),
 
     el('section', { class: 'panel' },
+      el('h2', null, 'Sync between devices'),
+      el('p', { class: 'hint' },
+        'Moving a file by hand is the manual version of this. Sync commits an encrypted copy of '
+        + 'the private layer to your own repository and merges what the other devices committed, '
+        + 'so the phone and the desktop stay in step without a file ever changing hands.'),
+      el('p', { class: 'hint' },
+        'It does not replace exporting. An export is a file you hold; sync is a copy only your '
+        + 'passphrase can open, in a place you do not control.'),
+      el('div', { class: 'row' }, el('a', { class: 'btn ghost', href: '#/sync' }, 'Set up sync'))),
+
+    el('section', { class: 'panel' },
       el('h2', null, 'Import'),
       el('p', { class: 'hint' }, 'Merge keeps whichever copy of each record was edited last and leaves anything this device has that the file does not mention. Replace throws away what is here first.'),
       el('div', { class: 'row' },

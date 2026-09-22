@@ -77,6 +77,7 @@ export async function put(store, record) {
   const t = tx(db, store, 'readwrite');
   t.objectStore(store).put(record);
   await done(t);
+  announceChange(store);
   return record;
 }
 
@@ -87,6 +88,7 @@ export async function putMany(store, records) {
   const os = t.objectStore(store);
   for (const record of records) os.put(record);
   await done(t);
+  announceChange(store);
   return records.length;
 }
 
@@ -95,6 +97,7 @@ export async function remove(store, id) {
   const t = tx(db, store, 'readwrite');
   t.objectStore(store).delete(id);
   await done(t);
+  announceChange(store);
 }
 
 export async function clearStore(store) {
@@ -107,6 +110,61 @@ export async function clearStore(store) {
 export async function count(store) {
   const db = await openDB();
   return req(tx(db, store, 'readonly').objectStore(store).count());
+}
+
+// --- change notification ---------------------------------------------------
+//
+// Auto-sync needs to know when something was edited. Subscribers are told the
+// store's name and nothing else; the debounce and the deciding live in sync.
+// Writes made *by* a pull are suppressed, or applying one would immediately
+// schedule a push of what was just pulled.
+
+const changeListeners = new Set();
+let suppressed = 0;
+
+export function onChange(listener) {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+function announceChange(store) {
+  if (suppressed > 0) return;
+  for (const listener of changeListeners) {
+    try { listener(store); } catch (err) { console.error(err); }
+  }
+}
+
+/** Run a write that must not count as a local edit. */
+export async function withoutChangeEvents(fn) {
+  suppressed += 1;
+  try { return await fn(); } finally { suppressed -= 1; }
+}
+
+// --- device-local state (`meta`) -------------------------------------------
+//
+// The `meta` store is not in STORES, so it is never exported, never merged and
+// never synced. That is exactly where the GitHub token belongs: it is this
+// device's credential, and pushing it to the repository would commit a secret
+// to a place designed to be shared.
+
+export async function getMeta(key) {
+  const db = await openDB();
+  return req(tx(db, 'meta', 'readonly').objectStore('meta').get(key));
+}
+
+export async function setMeta(key, value) {
+  const db = await openDB();
+  const t = tx(db, 'meta', 'readwrite');
+  t.objectStore('meta').put(value, key);
+  await done(t);
+  return value;
+}
+
+export async function deleteMeta(key) {
+  const db = await openDB();
+  const t = tx(db, 'meta', 'readwrite');
+  t.objectStore('meta').delete(key);
+  await done(t);
 }
 
 // --- settings -------------------------------------------------------------
@@ -188,6 +246,10 @@ export async function previewImport(text, mode = 'merge') {
 }
 
 export async function applyImport(plan) {
+  return withoutChangeEvents(() => applyImportNow(plan));
+}
+
+async function applyImportNow(plan) {
   for (const store of STORES) {
     const rows = plan.stores[store]?.rows ?? [];
     if (plan.mode === 'replace') await clearStore(store);

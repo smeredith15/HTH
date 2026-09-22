@@ -23,7 +23,7 @@ export const STORES = [
   'print_costs', 'print_vendors',
 ];
 
-function bytesToBase64(bytes) {
+export function bytesToBase64(bytes) {
   if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
   let binary = '';
   const chunk = 0x8000; // String.fromCharCode has an argument-count limit.
@@ -33,7 +33,7 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-function base64ToBytes(text) {
+export function base64ToBytes(text) {
   if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(text, 'base64'));
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);

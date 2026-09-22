@@ -475,6 +475,41 @@ asks for a snooze. A warning that cannot be dismissed is a warning that gets
 ignored, so it snoozes for a week or a month, and the home screen filters on the
 same helper — otherwise one snooze would only silence half the app.
 
+### Sync splits records from photographs
+
+One encrypted file for everything was the obvious design and it does not work.
+The golf bag alone is 2.5 MB of photographs once base64'd; sixty pieces would be
+well over a hundred megabytes, rewritten in full every time a price changed.
+
+So records go in one file and photographs go one file per artwork, gated on a
+digest of `id:added_at:original_bytes` per image. A price edit leaves every
+digest unchanged and uploads nothing but the records. GitHub stops inlining file
+content in the Contents API at 1 MB, so reads fall back to the Blob API by sha —
+without that, photo bundles come back as metadata with an empty body and the
+pixels quietly never arrive.
+
+### Sync pulls before it pushes, always
+
+`push` on its own would overwrite whatever the other device committed since this
+one last looked. Losing an afternoon of edits is the exact failure sync is meant
+to prevent, so `sync()` is pull-then-push and the push writes the merged result.
+A stale sha is retried once against the current file; a second failure is a real
+conflict and the caller is told to pull.
+
+### The token lives in `meta`, which is not a store
+
+`STORES` drives export, import and sync. Putting the GitHub token in settings
+would have committed the credential to the repository it unlocks. The `meta`
+object store is outside that list by construction, which is why the token sits
+there alongside the sync state, and why a test asserts `meta` is not in `STORES`.
+
+### The derived key is held in memory and nowhere else
+
+§4.5 says the passphrase is never stored. A key in `localStorage` is the same
+thing with an extra step, so the key lives in a module variable and a reload
+starts locked. The cost is re-entering a passphrase once per session; the app
+says so on boot rather than letting edits pile up unsynced in silence.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text
