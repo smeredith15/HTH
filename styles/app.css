@@ -491,6 +491,15 @@ textarea.mono {
 .photo-item + .photo-item { border-top: 1px dashed var(--line); padding-top: 0.6rem; }
 .photo-group > label.btn { justify-self: start; }
 
+/* The shot list on home: title, how far along, what is missing. */
+.shot-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.4rem; }
+.shot-list li {
+  display: grid; grid-template-columns: minmax(8rem, 1fr) auto; gap: 0.2rem 0.75rem;
+  align-items: baseline; padding-bottom: 0.4rem; border-bottom: 1px solid var(--line);
+}
+.shot-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.shot-missing { grid-column: 1 / -1; }
+
 .extra-photos { margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
 .extra-photos h3 { font-size: 0.95rem; color: var(--birch); margin-bottom: 0.2em; }
 

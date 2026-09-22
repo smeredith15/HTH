@@ -255,6 +255,25 @@ export function unclaimedImages(artwork) {
   return (artwork.images ?? []).filter((i) => !asked.has(i.role));
 }
 
+/**
+ * Every piece still in the studio that has a shot outstanding, worst first.
+ *
+ * A piece with no straight-on is urgent — it cannot be reproduced at all and
+ * §6.2 already shouts about it. This is the quieter list: the one you work
+ * down in an evening, where "four of six" is as actionable as "none of six".
+ */
+export function shotList(artworks = []) {
+  return artworks
+    .filter((a) => a.on_hand && a.status !== 'idea')
+    .map((artwork) => {
+      const missing = checklistFor(artwork).filter((row) => !row.optional && !row.image);
+      return { artwork, missing, progress: checklistProgress(artwork) };
+    })
+    .filter((entry) => entry.missing.length)
+    .sort((a, b) => b.missing.length - a.missing.length
+      || (a.artwork.title ?? '').localeCompare(b.artwork.title ?? ''));
+}
+
 /** Only the shots that matter count towards "done". */
 export function checklistProgress(artwork) {
   const rows = checklistFor(artwork).filter((r) => !r.optional);

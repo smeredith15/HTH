@@ -51,7 +51,15 @@ a master is measured, the largest photo on file stands in as the ceiling, and
 the listing editor says so rather than pretending it is a promise.
 
 A piece still on hand with no straight-on photo says "photograph this before it
-leaves", and that prompt can be snoozed.
+leaves", and that prompt can be snoozed. Home also carries a shot list: every
+piece still in the studio with a shot outstanding, worst first, with what is
+missing — one screen to work down instead of sixty records opened to find out
+which need what.
+
+Adding photographs takes as many files at once as you select, on the panel or
+on any single checklist row. One unreadable file among twenty does not lose
+the nineteen that worked, and the whole batch saves once rather than rebuilding
+the screen and pushing a sync commit per file. Replacing still takes one.
 
 ### What Phase 6 covers
 
