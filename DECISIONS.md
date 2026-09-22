@@ -265,6 +265,37 @@ say.
 
 Whether CanvasChamp will drop-ship is unasked, and worth about $14.50 a print.
 
+## Phase 3 — images
+
+### The long edge gives way before the quality does
+
+§5.3 asks for 2,000 px at about quality 0.82, under 600 KB. Those three can
+conflict: a densely textured photograph — which is exactly what scorched and
+carved wood is — can miss 600 KB at 2,000 px even at the lowest quality worth
+shipping.
+
+The order of surrender is quality first, down to 0.45, then the long edge:
+1,800, 1,600, 1,400 px. Below 1,400 nothing is worth publishing, so it stops
+there and says the budget was missed rather than shipping something unusable.
+A real photograph never reaches this — a 4,000 px test shot came out 2,000 px
+at 142 KB. Pure noise fell back to 1,800 px at 567 KB. Both are correct.
+
+### The original is read, then discarded
+
+A phone photo is 3–12 MB and §3 caps a committed file at 50 MB, so originals
+are never stored. What is kept is `original_width_px` and `original_height_px`,
+private, because that pair is the only thing that decides the print-size limit
+(§5.4). Adding a straight-on photo offers to record it as the print master
+rather than doing it silently — the registry is the owner's judgement, not a
+side effect.
+
+### The prompt that matters most is snoozable
+
+§6.2 calls "photograph this before it leaves" the prompt that matters most, and
+asks for a snooze. A warning that cannot be dismissed is a warning that gets
+ignored, so it snoozes for a week or a month, and the home screen filters on the
+same helper — otherwise one snooze would only silence half the app.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text
