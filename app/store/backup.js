@@ -5,7 +5,16 @@
 // download named hightide-private-YYYY-MM-DD.json.
 
 export const EXPORT_FORMAT = 'hightide-private';
-export const EXPORT_VERSION = 1;
+export const EXPORT_VERSION = 2;
+
+/**
+ * Photographs are Blobs, and `JSON.stringify(blob)` is `{}` — silently, with
+ * no error. An export written without this carried every photo's id and none
+ * of its pixels, which made the backup of record a backup of everything except
+ * the irreplaceable part. Blobs travel as base64 and are rebuilt on import.
+ */
+export const BLOB_MARKER = '__blob_base64';
+export const BLOB_STORES = ['images_blobs'];
 
 /** Every store that export/import must carry. Adding one here is enough. */
 export const STORES = [
@@ -14,18 +23,74 @@ export const STORES = [
   'print_costs', 'print_vendors',
 ];
 
-export function exportFilename(date = new Date()) {
-  return `hightide-private-${date.toISOString().slice(0, 10)}.json`;
+function bytesToBase64(bytes) {
+  if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
+  let binary = '';
+  const chunk = 0x8000; // String.fromCharCode has an argument-count limit.
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
-export function buildExport(data, { exported_at = new Date().toISOString() } = {}) {
+function base64ToBytes(text) {
+  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(text, 'base64'));
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+export async function encodeBlobRows(rows = []) {
+  return Promise.all(rows.map(async (row) => {
+    if (typeof Blob === 'undefined' || !(row?.blob instanceof Blob)) return row;
+    const bytes = new Uint8Array(await row.blob.arrayBuffer());
+    return {
+      ...row,
+      blob: {
+        [BLOB_MARKER]: true,
+        type: row.blob.type || 'application/octet-stream',
+        size: row.blob.size,
+        data: bytesToBase64(bytes),
+      },
+    };
+  }));
+}
+
+export function decodeBlobRows(rows = []) {
+  return rows.map((row) => {
+    const encoded = row?.blob;
+    if (!encoded || typeof encoded !== 'object' || !encoded[BLOB_MARKER]) return row;
+    return { ...row, blob: new Blob([base64ToBytes(encoded.data)], { type: encoded.type }) };
+  });
+}
+
+/** Rows whose image data did not survive being written — see BLOB_MARKER. */
+export function hollowBlobRows(rows = []) {
+  return rows.filter((row) => {
+    const b = row?.blob;
+    if (!b) return true;
+    if (typeof Blob !== 'undefined' && b instanceof Blob) return false;
+    return !b[BLOB_MARKER];
+  });
+}
+
+export function exportFilename(date = new Date(), { photos = true } = {}) {
+  const suffix = photos ? '' : '-records-only';
+  return `hightide-private-${date.toISOString().slice(0, 10)}${suffix}.json`;
+}
+
+export function buildExport(data, { exported_at = new Date().toISOString(), photos = true } = {}) {
   const payload = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exported_at,
+    photos,
     settings: data.settings ?? {},
   };
-  for (const store of STORES) payload[store] = data[store] ?? [];
+  for (const store of STORES) {
+    payload[store] = BLOB_STORES.includes(store) && !photos ? [] : (data[store] ?? []);
+  }
   return payload;
 }
 
@@ -55,14 +120,21 @@ export function parseImport(text) {
       `This file was written by a newer version of the app (v${parsed.version}). Update the app first.`,
     );
   }
-  const out = { settings: parsed.settings ?? {}, exported_at: parsed.exported_at ?? null };
+  const out = {
+    settings: parsed.settings ?? {},
+    exported_at: parsed.exported_at ?? null,
+    photos: parsed.photos !== false,
+  };
   for (const store of STORES) {
     const rows = parsed[store];
     if (rows !== undefined && !Array.isArray(rows)) {
       throw new ImportError(`"${store}" should be a list but is ${typeof rows}.`);
     }
-    out[store] = rows ?? [];
+    out[store] = BLOB_STORES.includes(store) ? decodeBlobRows(rows ?? []) : (rows ?? []);
   }
+  // A file written before version 2 carries photo rows with no pixels in them.
+  // Say so rather than importing hollow records over working ones.
+  out.hollowPhotos = BLOB_STORES.flatMap((store) => hollowBlobRows(parsed[store] ?? []));
   return out;
 }
 
@@ -112,8 +184,15 @@ export function mergeStore(existing = [], incoming = [], { key = 'id' } = {}) {
 
 /** Plan a whole-file merge without writing anything, so the UI can preview it. */
 export function planImport(current, incoming, { mode = 'merge' } = {}) {
-  const plan = { mode, stores: {}, conflicts: [] };
+  const plan = { mode, stores: {}, conflicts: [], photos: incoming.photos !== false };
   for (const store of STORES) {
+    // A records-only file says nothing about photographs, so a replace from
+    // one must not be read as "delete every photo".
+    if (BLOB_STORES.includes(store) && incoming.photos === false) {
+      const kept = current[store] ?? [];
+      plan.stores[store] = { rows: kept, added: [], updated: [], unchanged: kept.map((r) => r.id), conflicts: [] };
+      continue;
+    }
     if (mode === 'replace') {
       plan.stores[store] = {
         rows: incoming[store] ?? [],

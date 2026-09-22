@@ -3,7 +3,9 @@
 // Nothing in app/kiosk/ or app/public/ may import this module. §9.2 requires
 // that separation and tests/kiosk-isolation.test.js enforces it.
 
-import { STORES, buildExport, parseImport, planImport, exportFilename } from './backup.js';
+import {
+  STORES, BLOB_STORES, buildExport, parseImport, planImport, exportFilename, encodeBlobRows,
+} from './backup.js';
 import { DEFAULT_SETTINGS, withDefaults } from './settings.js';
 
 const DB_NAME = 'hightide-private';
@@ -146,16 +148,36 @@ export async function storageEstimate() {
 
 // --- export / import ------------------------------------------------------
 
-export async function readEverything() {
+export async function readEverything({ encodePhotos = false } = {}) {
   const data = { settings: await loadSettings() };
-  for (const store of STORES) data[store] = await getAll(store);
+  for (const store of STORES) {
+    const rows = await getAll(store);
+    data[store] = encodePhotos && BLOB_STORES.includes(store) ? await encodeBlobRows(rows) : rows;
+  }
   return data;
 }
 
-export async function exportAll() {
-  const data = await readEverything();
-  const payload = buildExport(data);
-  return { payload, filename: exportFilename(new Date()), json: JSON.stringify(payload, null, 2) };
+export async function exportAll({ photos = true } = {}) {
+  const data = await readEverything({ encodePhotos: photos });
+  const payload = buildExport(data, { photos });
+  const json = JSON.stringify(payload, null, 2);
+  return {
+    payload,
+    filename: exportFilename(new Date(), { photos }),
+    json,
+    bytes: new Blob([json]).size,
+  };
+}
+
+/** What an export would weigh, without writing one. */
+export async function exportSize() {
+  const blobs = await getAll('images_blobs');
+  const photoBytes = blobs.reduce((total, row) => total + (row.blob?.size ?? 0), 0);
+  return {
+    photos: blobs.length,
+    // base64 costs about a third again on top of the raw bytes.
+    photoBytes: Math.round(photoBytes * 4 / 3),
+  };
 }
 
 /** Read a file and work out what importing it would do — no writes. */

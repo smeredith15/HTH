@@ -11,6 +11,14 @@ import { renderListings } from './admin/listings.js';
 import { renderListingEditor } from './admin/listing-editor.js';
 import { renderPrintCosts } from './admin/print-costs.js';
 import { renderHelp } from './admin/help.js';
+import { renderMoney } from './admin/money.js';
+import { renderSales } from './admin/sales.js';
+import { renderCommissions } from './admin/commissions.js';
+import { renderExpenses } from './admin/expenses.js';
+import { renderReprice } from './admin/reprice.js';
+import { renderReports } from './admin/reports.js';
+import { renderInventory } from './admin/inventory.js';
+import { renderSnapshots } from './admin/snapshots.js';
 import { renderBackup } from './admin/backup-view.js';
 import { renderSettings } from './admin/settings-view.js';
 
@@ -19,7 +27,7 @@ const NAV = [
   ['/', 'Home'],
   ['/catalog', 'Catalog'],
   ['/listings', 'Listings'],
-  ['/print-costs', 'Costs'],
+  ['/money', 'Money'],
   ['/backup', 'Backup'],
   ['/settings', 'Settings'],
 ];
@@ -48,7 +56,19 @@ function withChrome(render) {
 // Detail screens belong to the section they came from: an artwork is Catalog,
 // a listing is Listings. Without this the nav goes blank the moment you open
 // anything.
-const NAV_OWNER = { '/artwork/': '/catalog', '/listing/': '/listings' };
+// Everything about money hangs off the hub, so the nav stays at six.
+const NAV_OWNER = {
+  '/artwork/': '/catalog',
+  '/listing/': '/listings',
+  '/inventory': '/catalog',
+  '/print-costs': '/money',
+  '/sales': '/money',
+  '/commissions': '/money',
+  '/expenses': '/money',
+  '/reprice': '/money',
+  '/reports': '/money',
+  '/snapshots': '/money',
+};
 
 function navTargetFor(path) {
   for (const [prefix, target] of Object.entries(NAV_OWNER)) {
@@ -84,7 +104,15 @@ route('/artwork/:id', withChrome(renderArtwork));
 route('/artwork/:id/edit', withChrome(renderArtworkEdit));
 route('/listings', withChrome(renderListings));
 route('/listing/:id', withChrome(renderListingEditor));
+route('/money', withChrome(renderMoney));
 route('/print-costs', withChrome(renderPrintCosts));
+route('/sales', withChrome(renderSales));
+route('/commissions', withChrome(renderCommissions));
+route('/expenses', withChrome(renderExpenses));
+route('/reprice', withChrome(renderReprice));
+route('/reports', withChrome(renderReports));
+route('/inventory', withChrome(renderInventory));
+route('/snapshots', withChrome(renderSnapshots));
 route('/backup', withChrome(renderBackup));
 route('/help', withChrome(renderHelp));
 route('/settings', withChrome(renderSettings));

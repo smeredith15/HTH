@@ -2,15 +2,17 @@
 
 import { el, mount, relativeDays, toast, dateOnly } from '../ui/dom.js';
 import {
-  exportAll, previewImport, applyImport, loadSettings, patchSettings,
+  exportAll, exportSize, previewImport, applyImport, loadSettings, patchSettings,
   requestPersistence, storageEstimate,
 } from '../store/db.js';
 import { exportAge, ImportError } from '../store/backup.js';
+import { readableBytes } from '../images/resize.js';
 
 export async function renderBackup(host) {
   const settings = await loadSettings();
   const age = exportAge(settings.last_exported_at);
   const estimate = await storageEstimate();
+  const photos = await exportSize();
   const report = el('div', { class: 'import-report' });
 
   mount(host,
@@ -24,7 +26,18 @@ export async function renderBackup(host) {
         ? 'You have never exported this catalog.'
         : `Last exported ${relativeDays(age.days)} (${dateOnly(settings.last_exported_at)}).`),
       el('p', { class: 'hint' }, 'One JSON file with every artwork, listing, sale, customer, commission, expense and setting. Keep it somewhere that is not this browser.'),
-      el('button', { class: 'btn primary', type: 'button', onClick: () => doExport() }, 'Export everything')),
+      photos.photos
+        ? el('p', { class: 'hint' },
+          `${photos.photos} photo file${photos.photos === 1 ? '' : 's'} on this device, about `
+          + `${readableBytes(photos.photoBytes)} inside an export. Photographs are the part that cannot be replaced, `
+          + 'so include them unless you are just taking a quick copy of the records.')
+        : null,
+      el('div', { class: 'row' },
+        el('button', { class: 'btn primary', type: 'button', onClick: () => doExport({ photos: true }) },
+          photos.photos ? 'Export everything, with photos' : 'Export everything'),
+        photos.photos
+          ? el('button', { class: 'btn ghost', type: 'button', onClick: () => doExport({ photos: false }) }, 'Records only')
+          : null)),
 
     el('section', { class: 'panel' },
       el('h2', null, 'Import'),
@@ -46,8 +59,8 @@ export async function renderBackup(host) {
       } }, 'Ask the browser to keep this data')));
 }
 
-async function doExport() {
-  const { json, filename } = await exportAll();
+async function doExport(options = {}) {
+  const { json, filename, bytes } = await exportAll(options);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = el('a', { href: url, download: filename });
@@ -55,8 +68,10 @@ async function doExport() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  await patchSettings({ last_exported_at: new Date().toISOString() });
-  toast(`Exported ${filename}`, 'ok');
+  // A records-only file is not a backup of the photographs, so it does not
+  // reset the clock on the warning.
+  if (options.photos !== false) await patchSettings({ last_exported_at: new Date().toISOString() });
+  toast(`Exported ${filename} · ${readableBytes(bytes)}`, 'ok');
 }
 
 function fileButton(text, mode, report) {
@@ -66,7 +81,14 @@ function fileButton(text, mode, report) {
       const file = event.target.files?.[0];
       if (!file) return;
       try {
-        const { plan } = await previewImport(await file.text(), mode);
+        const { incoming, plan } = await previewImport(await file.text(), mode);
+        if (incoming.hollowPhotos?.length) {
+          mount(report, el('div', { class: 'alert bad' },
+            el('strong', null, `${incoming.hollowPhotos.length} photo records in that file have no image data in them. `),
+            'It was written by a version that could not save photographs. Import it for the records if you '
+            + 'like, but the pictures are not in it — take a fresh export from the device that still has them.'));
+          return;
+        }
         mount(report, previewPanel(plan, file.name, report));
       } catch (err) {
         mount(report, el('div', { class: 'alert bad' },
@@ -103,6 +125,12 @@ function previewPanel(plan, filename, report) {
         'Importing keeps the copy on this device for those. Sort them out by hand afterwards:',
         el('ul', null, plan.conflicts.slice(0, 10).map((c) =>
           el('li', { text: `${c.store} · ${c.id} — ${c.reason}` }))))
+      : null,
+
+    plan.photos === false
+      ? el('div', { class: 'alert warn' },
+        el('strong', null, 'This file carries no photographs. '),
+        'The photos already on this device are left exactly as they are.')
       : null,
 
     plan.mode === 'replace'

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildExport, serializeExport, parseImport, mergeStore, planImport,
   exportFilename, exportAge, ImportError, STORES,
+  encodeBlobRows, decodeBlobRows, hollowBlobRows, BLOB_MARKER,
 } from '../app/store/backup.js';
 import { newArtwork } from '../app/store/schema.js';
 import { SEED_ARTWORKS, SEED_LISTINGS } from '../app/store/seed.js';
@@ -105,6 +106,90 @@ test('merge mode keeps local records the file does not mention', () => {
   const plan = planImport(current, incoming, { mode: 'merge' });
   assert.equal(plan.stores.artworks.rows.some((a) => a.id === 'keep-me'), true);
   assert.equal(plan.stores.artworks.rows.length, 62);
+});
+
+// --- photographs (the part that cannot be replaced) ------------------------
+
+// JSON.stringify(blob) is `{}`, silently. An export written without encoding
+// carried every photo's id and none of its pixels.
+test('a raw Blob does not survive JSON at all', () => {
+  const row = { id: 'a-web', blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }) };
+  assert.deepEqual(JSON.parse(JSON.stringify(row)).blob, {}, 'this is the bug');
+});
+
+test('encoded photo bytes survive the round trip exactly', async () => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 128, 64]);
+  const rows = await encodeBlobRows([{ id: 'a-web', artwork_id: 'blue-crab', blob: new Blob([bytes], { type: 'image/jpeg' }) }]);
+  assert.equal(rows[0].blob[BLOB_MARKER], true);
+  assert.equal(rows[0].blob.type, 'image/jpeg');
+
+  const back = decodeBlobRows(JSON.parse(JSON.stringify(rows)));
+  assert.ok(back[0].blob instanceof Blob);
+  assert.equal(back[0].blob.type, 'image/jpeg');
+  assert.deepEqual(new Uint8Array(await back[0].blob.arrayBuffer()), bytes);
+  assert.equal(back[0].artwork_id, 'blue-crab', 'the other fields come through untouched');
+});
+
+test('a whole export carries its photographs', async () => {
+  const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+  const data = {
+    settings: {},
+    images_blobs: await encodeBlobRows([{ id: 'straight_on-web', blob: new Blob([bytes]) }]),
+  };
+  const back = parseImport(serializeExport(data));
+  assert.equal(back.images_blobs.length, 1);
+  assert.ok(back.images_blobs[0].blob instanceof Blob);
+  assert.deepEqual(new Uint8Array(await back.images_blobs[0].blob.arrayBuffer()), bytes);
+  assert.deepEqual(back.hollowPhotos, []);
+});
+
+test('an export written by the broken version is caught, not imported', () => {
+  const broken = JSON.stringify({
+    format: 'hightide-private', version: 1,
+    images_blobs: [{ id: 'a-web', blob: {} }, { id: 'a-thumb', blob: {} }],
+  });
+  const back = parseImport(broken);
+  assert.equal(back.hollowPhotos.length, 2, 'both hollow rows are reported');
+});
+
+test('hollowBlobRows can tell a real photo from an empty one', () => {
+  const rows = [
+    { id: 'good', blob: { [BLOB_MARKER]: true, data: 'AAA=', type: 'image/jpeg' } },
+    { id: 'live', blob: new Blob(['x']) },
+    { id: 'hollow', blob: {} },
+    { id: 'missing' },
+  ];
+  assert.deepEqual(hollowBlobRows(rows).map((r) => r.id), ['hollow', 'missing']);
+});
+
+test('a records-only export leaves photographs out, and says so', () => {
+  const data = { settings: {}, artworks: SEED_ARTWORKS, images_blobs: [{ id: 'a-web', blob: {} }] };
+  const payload = buildExport(data, { photos: false });
+  assert.deepEqual(payload.images_blobs, []);
+  assert.equal(payload.photos, false);
+  assert.equal(payload.artworks.length, 61, 'the records are all still there');
+  assert.match(exportFilename(new Date('2026-09-22T00:00:00Z'), { photos: false }), /records-only/);
+});
+
+test('importing a records-only file never deletes photographs', () => {
+  const current = { images_blobs: [{ id: 'keep-web' }, { id: 'keep-thumb' }], artworks: [] };
+  const incoming = parseImport(serializeExport({ settings: {}, artworks: SEED_ARTWORKS }, { photos: false }));
+
+  for (const mode of ['merge', 'replace']) {
+    const plan = planImport(current, incoming, { mode });
+    assert.equal(plan.photos, false);
+    assert.deepEqual(
+      plan.stores.images_blobs.rows.map((r) => r.id), ['keep-web', 'keep-thumb'],
+      `${mode} must not wipe photos a records-only file says nothing about`,
+    );
+  }
+});
+
+test('a full export does replace photographs when told to', () => {
+  const current = { images_blobs: [{ id: 'old-web' }] };
+  const incoming = parseImport(serializeExport({ settings: {}, images_blobs: [{ id: 'new-web' }] }));
+  const plan = planImport(current, incoming, { mode: 'replace' });
+  assert.deepEqual(plan.stores.images_blobs.rows.map((r) => r.id), ['new-web']);
 });
 
 test('the last-exported warning fires at 14 days (§4.2)', () => {

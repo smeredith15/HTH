@@ -265,6 +265,84 @@ say.
 
 Whether CanvasChamp will drop-ship is unasked, and worth about $14.50 a print.
 
+## Photographs were not actually being backed up
+
+`JSON.stringify(blob)` is `{}`. Silently, with no error. So every export written
+before this carried each photo's id, role and alt text — and none of its pixels.
+The backup of record was a backup of everything except the part that cannot be
+recreated.
+
+Found by checking before the owner started adding photographs in earnest, which
+is the only reason it did not cost anything.
+
+Blobs now travel as base64 under a `__blob_base64` marker and are rebuilt into
+real Blobs on import. Export format version 2. A file from the old version is
+detected on import and **refused** with an explanation, rather than writing
+hollow photo records over working ones.
+
+### Photographs make the file large, so there are two exports
+
+Base64 costs about a third again on top of the raw bytes. One photograph is
+roughly 215 KB in an export; sixty pieces at three shots each would be near
+40 MB, which is close to GitHub's 50 MB warning and slow to move around.
+
+So: **Export everything, with photos** is the real backup, and **Records only**
+is the quick copy. A records-only file never deletes the photographs on the
+device it is imported into — in either merge or replace mode — because a file
+that says nothing about photographs is not saying "delete them". Only a full
+export resets the "last exported" clock, because only a full export is a
+backup.
+
+## Phase 6 — money
+
+### A hub, so the nav stays at six
+
+Sales, commissions, expenses, print costs, pricing, reports, inventory and
+monthly figures is eight more screens. A phone nav holds about six. They all
+hang off **Money**, and every one of them highlights Money in the nav so you
+always know where you are. Print costs moved under it and kept its address.
+
+### Only work that is underway consumes bench time
+
+An inquiry is not a commitment, so the queue counts `accepted`, `in_progress`
+and `awaiting_approval` and nothing else. Hours already done come off the
+estimate, so a commission half finished stops blocking the ones behind it.
+
+Capacity is the point of the whole screen: §1.1 lists "no commission queue" as
+one of the five problems, because custom-order quantity has been held at 1 on
+Etsy to avoid overlapping deadlines — which shows "Only 1 left" to every
+shopper. The screen says so, next to the number.
+
+### Offsite Ads only when the order came from Offsite Ads
+
+Charging 15% on every Etsy sale would make the shop look worse than it is, so
+the fee applies only to sales whose source is `offsite_ads`, and the $100
+per-order cap applies. Etsy charges whole cents, so the fee is rounded before
+it is subtracted — otherwise the net is a cent out.
+
+### The rate is pooled, not an average of averages
+
+One 40-hour portrait and one 10-hour lighthouse are not two equal data points.
+Every hourly figure is total net over total hours for that group. A category
+needs two sales before it is compared at all: one sale is an anecdote.
+
+Sales without hours are counted as **unrated** and named, not folded in as
+zero. §2.1 says hours are optional, so a rate the app cannot know is a rate it
+does not claim.
+
+### Pricing recommends, and never acts
+
+Every suggestion is a button. The most useful output is not the target price at
+all — it is "cheaper the same size": the cactus print at 24 × 16 lands at
+$117.31 on wood and $36.00 on canvas, and no shopper pays the $331.72 that wood
+would need. The substrate is the decision; the price is downstream of it.
+
+### An expense linked to a piece can be counted twice
+
+A sale's net already has that piece's own materials taken out. Logging the same
+wood as an expense would charge it twice, so the screen says to link an expense
+to a piece only when it is *not* in that piece's materials cost.
+
 ## The guide lives in the app
 
 A README on github.com is not where anyone looks while standing in a studio

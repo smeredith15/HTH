@@ -19,6 +19,9 @@ export const DEFAULT_SETTINGS = {
   print_shipping_estimate: 12,   // posting one print to a US buyer
   packaging_cost: 2.5,           // tube or flat mailer, corners, tape
   target_print_margin: 0.55,     // profit as a share of the sale price
+  // §5.8's capacity figure needs a size for "one more commission". Faces take
+  // 25–50 hours regardless of the panel, so the middle of that is the guess.
+  typical_commission_hours: 35,
   kiosk_pin: null,
   kiosk_idle_seconds: 90,
   kiosk_show_sold: true,
