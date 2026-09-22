@@ -54,7 +54,11 @@ export function shellList() {
     'manifest.webmanifest',
     ...moduleGraph(),
     ...filesIn('app/vendor'),
-    ...filesIn('icons'),
+    // Only the icons the running app draws. The 192, 512 and maskable files
+    // are read once by the installer and the master is only ever a source for
+    // regenerating them — precaching three quarters of a megabyte the app
+    // never requests would be paying for it on every device.
+    ...filesIn('icons').filter((f) => /favicon-|apple-touch-icon|logo-64/.test(f)),
   ];
 }
 
