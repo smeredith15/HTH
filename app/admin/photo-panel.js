@@ -44,17 +44,18 @@ async function draw(host, artwork, onChange) {
       el('summary', null, 'How to shoot these'),
       el('ul', { class: 'guide-list' }, SHOOTING_GUIDE.map((line) => el('li', { text: line })))),
 
-    el('ul', { class: 'photo-list' }, rows.map((row) => checklistRow(artwork, row, onChange))),
+    el('ul', { class: 'photo-list' }, rows.map((row) => photoRow(artwork, row, onChange))),
 
     // Photos tagged with a role the checklist never asks for. Kept apart so
-    // the six shots that matter stay readable however many extras pile up.
+    // the six shots that matter stay readable however many extras pile up —
+    // but built by the same function, because hand-rolling a second copy of
+    // this markup is exactly how these rows ended up squeezed into the 84 px
+    // thumbnail column.
     extras.length
       ? el('div', { class: 'extra-photos' },
         el('h3', null, `Other photographs (${extras.length})`),
         el('ul', { class: 'photo-list' },
-          extras.map((image) => el('li', { class: 'has-photo' },
-            el('div', { class: 'photo-group' },
-              imageBlock(artwork, image, label(image.role), onChange))))))
+          extraRows(extras).map((row) => photoRow(artwork, row, onChange))))
       : null,
 
     (artwork.images ?? []).length
@@ -62,12 +63,32 @@ async function draw(host, artwork, onChange) {
       : null);
 }
 
+/** Extras grouped by their role, so they arrive shaped like a checklist row. */
+function extraRows(extras) {
+  const byRole = new Map();
+  for (const image of extras) {
+    if (!byRole.has(image.role)) byRole.set(image.role, []);
+    byRole.get(image.role).push(image);
+  }
+  return [...byRole.entries()].map(([role, images]) => ({
+    role,
+    label: label(role),
+    why: 'Not one of the six shots that matter — kept, and yours to use.',
+    images,
+    optional: true,
+  }));
+}
+
 /**
- * One checklist row, with every photo tagged to it. A role is not a single
- * slot: three raking details at different angles are all worth keeping, and
- * the row counts as done as soon as the first one lands.
+ * One row, with every photo tagged to it. A role is not a single slot: three
+ * raking details at different angles are all worth keeping, and the row counts
+ * as done as soon as the first one lands.
+ *
+ * Every row on this screen comes through here, checklist or extra. The two
+ * used to be built separately and the extras' li was missing `stacked`, which
+ * left a whole photo's controls rendering inside an 84 px column.
  */
-function checklistRow(artwork, row, onChange) {
+function photoRow(artwork, row, onChange) {
   const images = row.images ?? (row.image ? [row.image] : []);
   const heading = el('div', { class: 'row tight' },
     el('strong', { text: row.label }),
