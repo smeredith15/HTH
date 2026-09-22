@@ -92,7 +92,35 @@ Print masters are never committed. The registry records where they live.
 | 4 | Publish, kiosk, public portfolio | not started |
 | 5 | Offline / PWA | not started |
 | 6 | Sales, commissions, inventory, budgeting, dashboard | **done** |
-| 7 | Optional — encrypted sync, direct commit | not started |
+| 7 | Optional — encrypted sync, direct commit | **done** |
+
+### What Phase 7 covers
+
+Sync between devices with no backend, at `#/sync`. Each device holds the whole
+private layer; this encrypts it and commits it to a repository of your own, and
+merges back what the other devices committed.
+
+The records — every store except the photographs — go in one file,
+`data/sync/records.enc.json`, a couple of hundred KB for the whole catalog.
+Photographs go one file per piece under `data/sync/photos/`, written only when
+that piece's photos actually change, so editing a price does not re-upload
+twelve megabytes of pixels. Over GitHub's 1 MB inline limit the client falls
+back to the Blob API, which is what makes photo bundles work at all.
+
+Encryption is AES-GCM under a key derived with PBKDF2-SHA-256 at 600,000
+iterations, per §4.5. The salt and a verifier live in `data/sync/keyfile.json`,
+which is safe to read; the passphrase is never stored, so it is entered once per
+session and the derived key is held in memory only. **There is no recovery.**
+The GitHub token is a fine-grained PAT scoped to the sync repository with
+Contents: read and write, kept in the `meta` object store — which is not in
+`STORES`, so it is never exported, never merged and never committed.
+
+Every sync pulls before it pushes, and merging is `mergeStore`'s newest-wins,
+so neither device can overwrite the other's afternoon. Auto-sync pushes about
+twenty seconds after edits settle, and when the tab is hidden. Deletions do not
+propagate: merging keeps the newer record and never removes one.
+
+Sync into a **private** repository, not the public one serving the portfolio.
 
 ### What Phase 1 covers
 
