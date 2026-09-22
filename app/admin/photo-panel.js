@@ -4,7 +4,7 @@ import { el, mount, label, pill, toast, confirmDialog, field, select, rerender }
 import { saveArtwork } from '../store/artworks.js';
 import {
   PHOTO_CHECKLIST, SHOOTING_GUIDE, QUALITY_FLAG_LABELS, checklistFor, checklistProgress,
-  addPhoto, removePhoto, urlFor, readableBytes,
+  addPhoto, removePhoto, urlFor, readableBytes, unclaimedImages, duplicateRoles,
 } from '../images/photos.js';
 import { IMAGE_ROLE, QUALITY_FLAG, printLimits } from '../store/schema.js';
 import { suggestAlt } from '../store/autofill.js';
@@ -29,7 +29,8 @@ async function draw(host, artwork, onChange) {
   releaseUrls();
   const progress = checklistProgress(artwork);
   const rows = checklistFor(artwork);
-  const extras = (artwork.images ?? []).filter((i) => !PHOTO_CHECKLIST.some((c) => c.role === i.role));
+  const extras = unclaimedImages(artwork);
+  const dupes = duplicateRoles(artwork);
 
   mount(host,
     el('div', { class: 'view-head tight' },
@@ -44,10 +45,24 @@ async function draw(host, artwork, onChange) {
       el('summary', null, 'How to shoot these'),
       el('ul', { class: 'guide-list' }, SHOOTING_GUIDE.map((line) => el('li', { text: line })))),
 
+    // Two photos on one role leaves another row looking empty when the shot
+    // was in fact taken. Say so, because the fix is one dropdown away.
+    dupes.length
+      ? el('div', { class: 'panel inset alert warn' },
+        el('strong', null, dupes.map(({ role, images }) => `${images.length} photos are tagged “${label(role)}”.`).join(' ')),
+        ' Re-tag the spare below and the row it belongs to will fill in.')
+      : null,
+
     el('ul', { class: 'photo-list' },
       rows.map((row) => photoRow(artwork, row, onChange)),
       extras.map((image) => photoRow(artwork, {
-        role: image.role, label: label(image.role), why: 'Extra shot.', image, optional: true,
+        role: image.role,
+        label: label(image.role),
+        why: PHOTO_CHECKLIST.some((c) => c.role === image.role)
+          ? `A second photo tagged “${label(image.role)}”. Change its role and it moves up into that row.`
+          : 'Extra shot.',
+        image,
+        optional: true,
       }, onChange))),
 
     (artwork.images ?? []).length

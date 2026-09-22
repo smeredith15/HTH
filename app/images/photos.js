@@ -149,10 +149,36 @@ export async function orphanedBlobs(artworks) {
 
 export function checklistFor(artwork) {
   const images = artwork.images ?? [];
-  return PHOTO_CHECKLIST.map((item) => ({
-    ...item,
-    image: images.find((i) => i.role === item.role) ?? null,
-  }));
+  // One image per row. A role used twice fills its row once; the spare is
+  // handed back by unclaimedImages so it still gets a row of its own, rather
+  // than vanishing from the panel with no way to re-tag it.
+  const claimed = new Set();
+  return PHOTO_CHECKLIST.map((item) => {
+    const image = images.find((i) => i.role === item.role && !claimed.has(i.id)) ?? null;
+    if (image) claimed.add(image.id);
+    return { ...item, image };
+  });
+}
+
+/**
+ * Images no checklist row took: an off-list role, or the second photo to
+ * claim a role the checklist only has one slot for.
+ */
+export function unclaimedImages(artwork) {
+  const claimed = new Set(checklistFor(artwork).map((r) => r.image?.id).filter(Boolean));
+  return (artwork.images ?? []).filter((i) => !claimed.has(i.id));
+}
+
+/** Roles carried by more than one image, with the images that share them. */
+export function duplicateRoles(artwork) {
+  const byRole = new Map();
+  for (const image of artwork.images ?? []) {
+    if (!byRole.has(image.role)) byRole.set(image.role, []);
+    byRole.get(image.role).push(image);
+  }
+  return [...byRole.entries()]
+    .filter(([, images]) => images.length > 1)
+    .map(([role, images]) => ({ role, images }));
 }
 
 /** Only the shots that matter count towards "done". */

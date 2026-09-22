@@ -6,7 +6,7 @@ import {
 } from '../app/images/resize.js';
 import {
   PHOTO_CHECKLIST, SHOOTING_GUIDE, checklistFor, checklistProgress, missingAltText,
-  nextImageId, webPathFor, thumbPathFor,
+  nextImageId, webPathFor, thumbPathFor, unclaimedImages, duplicateRoles,
 } from '../app/images/photos.js';
 import {
   newArtwork, photographBeforeItLeaves, snoozeUntil, printLimits,
@@ -102,6 +102,40 @@ test('the checklist pairs each role with its photo', () => {
   const rows = checklistFor(artwork);
   assert.equal(rows.find((r) => r.role === 'in_room').image.alt, 'on a wall');
   assert.equal(rows.find((r) => r.role === 'signature').image, null);
+});
+
+// Two photos on one role once made the spare disappear from the panel
+// altogether: the row took the first, and the extras list only caught roles
+// that were off the checklist. The photo was unreachable, and the row it
+// should have filled looked like a shot that had never been taken.
+test('a role used twice fills its row once and hands back the spare', () => {
+  const artwork = newArtwork({ title: 'x', images: [
+    { id: 'straight_on', role: 'straight_on' },
+    { id: 'in_room', role: 'straight_on' },
+  ] });
+  const rows = checklistFor(artwork);
+  assert.equal(rows.find((r) => r.role === 'straight_on').image.id, 'straight_on');
+  assert.equal(rows.find((r) => r.role === 'in_room').image, null);
+  assert.deepEqual(unclaimedImages(artwork).map((i) => i.id), ['in_room']);
+  assert.equal(checklistProgress(artwork).done, 1, 'the spare does not count twice');
+});
+
+test('an off-checklist role is still handed back as an extra', () => {
+  const artwork = newArtwork({ title: 'x', images: [{ id: 'packed', role: 'packed' }] });
+  assert.deepEqual(unclaimedImages(artwork).map((i) => i.id), ['packed']);
+  assert.deepEqual(duplicateRoles(artwork), []);
+});
+
+test('duplicate roles are named so the warning can say which', () => {
+  const artwork = newArtwork({ title: 'x', images: [
+    { id: 'a', role: 'straight_on' },
+    { id: 'b', role: 'straight_on' },
+    { id: 'c', role: 'scale' },
+  ] });
+  const dupes = duplicateRoles(artwork);
+  assert.equal(dupes.length, 1);
+  assert.equal(dupes[0].role, 'straight_on');
+  assert.deepEqual(dupes[0].images.map((i) => i.id), ['a', 'b']);
 });
 
 test('alt text is tracked because publishing needs it', () => {
