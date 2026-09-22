@@ -14,6 +14,11 @@ export const DEFAULT_SETTINGS = {
   // Not in §5.10, but §8.1's price-floor formula needs an estimated_shipping
   // term and no field supplies one. See DECISIONS.md.
   default_shipping_estimate: 20,
+  // Prints have their own economics: they cost what the lab charges, not what
+  // the original took in hours. See app/listing/print-pricing.js.
+  print_shipping_estimate: 12,   // posting one print to a US buyer
+  packaging_cost: 2.5,           // tube or flat mailer, corners, tape
+  target_print_margin: 0.55,     // profit as a share of the sale price
   kiosk_pin: null,
   kiosk_idle_seconds: 90,
   kiosk_show_sold: true,

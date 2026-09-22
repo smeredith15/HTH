@@ -422,3 +422,9 @@ textarea.mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px; line-height: 1.45;
 }
+
+/* --- print costs --------------------------------------------------------- */
+
+.table.costs td input { min-height: 38px; width: 6.5rem; }
+.table.costs td:first-child { white-space: nowrap; }
+.table.costs { min-width: 46rem; }

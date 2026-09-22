@@ -11,6 +11,8 @@ import {
 } from '../store/schema.js';
 import { generateListing, generateDescription, suggestTitle, suggestTags, suggestMaterials, suggestCategoryPath, reminderChecklist } from '../listing/generate.js';
 import { validateListing, summarise } from '../listing/validators.js';
+import { listPrintCosts, listPrintVendors } from '../store/print-costs.js';
+import { priceGuidance, costForVariant, sizeLabel } from '../listing/print-pricing.js';
 
 const TONE = { stop: 'bad', warn: 'warn', note: 'muted' };
 const LEVEL_WORD = { stop: 'Serious', warn: 'Warning', note: 'Note' };
@@ -20,6 +22,8 @@ export async function renderListingEditor(host, { params }) {
   if (!listing) return mount(host, el('p', { class: 'empty' }, `No listing with the id “${params.id}”.`));
   const artwork = listing.artwork_id ? await getArtwork(listing.artwork_id) : null;
   const settings = await loadSettings();
+  const [costRows, vendors] = await Promise.all([listPrintCosts(), listPrintVendors()]);
+  const context = { costRows, vendors };
   const draft = structuredClone(listing);
 
   // Live regions rebuilt on every edit. The form itself stays put so typing
@@ -31,12 +35,14 @@ export async function renderListingEditor(host, { params }) {
   const pricePanel = el('div', { class: 'hint' });
 
   const refresh = () => {
-    const findings = validateListing(draft, artwork, settings);
+    const findings = validateListing(draft, artwork, settings, context);
     mount(findingsPanel, findingsView(findings));
     mount(titleCounter, counterFor(draft.title?.length ?? 0, 140));
     mount(tagPanel, tagsView(draft.tags ?? []));
     mount(outputPanel, outputsView(draft, artwork, settings));
-    mount(pricePanel, priceView(draft, artwork, settings));
+    mount(pricePanel, draft.listing_type === 'print'
+      ? printPriceView(draft, context, settings)
+      : priceView(draft, artwork, settings));
   };
 
   const text = (key, labelText, hint, onInput) => field(labelText, el('input', {
@@ -313,6 +319,51 @@ function priceView(draft, artwork, settings) {
       ? el('strong', { class: hourly < settings.target_hourly ? 'bad-text' : 'ok-text',
         text: `At ${money(lowest)} that pays ${money(hourly)} an hour.` })
       : null);
+}
+
+/**
+ * For a print, the useful number is not the hours floor — it is what the lab
+ * charges. Shows the landed cost and the target price for every variant whose
+ * size is priced in the template.
+ */
+function printPriceView(draft, { costRows, vendors }, settings) {
+  const byName = new Map(vendors.map((v) => [v.name, v]));
+  const rows = (draft.variants ?? []).map((variant) => {
+    const row = costForVariant(variant, draft, costRows);
+    const vendor = row ? byName.get(row.vendor) : null;
+    return { variant, row, guidance: row ? priceGuidance(variant.price, row, vendor, settings) : { known: false } };
+  });
+
+  if (!rows.some((r) => r.guidance.known)) {
+    return el('span', null,
+      el('span', { class: 'muted' }, 'No lab cost recorded for these sizes. '),
+      el('a', { href: '#/print-costs' }, 'Fill in the print cost template'),
+      el('span', { class: 'muted' }, ' and the margin on every size appears here.'));
+  }
+
+  return el('div', { class: 'table-wrap' },
+    el('table', { class: 'table' },
+      el('thead', null, el('tr', null,
+        ['Size', 'Lab', 'Landed', 'Break even', 'Target', 'Your price', 'Margin'].map((h) => el('th', { text: h })))),
+      el('tbody', null, rows.map(({ variant, row, guidance }) => {
+        if (!guidance.known) {
+          return el('tr', { class: 'muted' },
+            el('td', { text: variant.label || sizeLabel(variant) }),
+            el('td', { colSpan: 6, text: 'no cost recorded for this size' }));
+        }
+        const at = guidance.at;
+        const tone = !at ? '' : at.profit < 0 ? 'bad-text' : at.margin < guidance.targetMargin ? 'warn-text' : 'ok-text';
+        return el('tr', null,
+          el('td', { text: variant.label || sizeLabel(variant) }),
+          el('td', { class: 'muted small', text: row.vendor }),
+          el('td', { text: money(guidance.cost.total) }),
+          el('td', { class: 'muted', text: money(guidance.breakEven) }),
+          el('td', null, el('strong', { text: money(guidance.target) })),
+          el('td', { text: at ? money(at.price) : '—' }),
+          el('td', null, at
+            ? el('strong', { class: tone, text: `${Math.round(at.margin * 100)}% · ${money(at.profit)}` })
+            : el('span', { class: 'muted', text: '—' })));
+      }))));
 }
 
 // --- variants --------------------------------------------------------------

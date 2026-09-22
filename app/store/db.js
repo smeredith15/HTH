@@ -7,7 +7,7 @@ import { STORES, buildExport, parseImport, planImport, exportFilename } from './
 import { DEFAULT_SETTINGS, withDefaults } from './settings.js';
 
 const DB_NAME = 'hightide-private';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2 adds print_costs and print_vendors
 const SETTINGS_KEY = 'settings';
 
 let dbPromise = null;

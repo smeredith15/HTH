@@ -9,6 +9,7 @@ import { renderCatalog, promptQuickAdd } from './admin/catalog.js';
 import { renderArtwork, renderArtworkEdit } from './admin/artwork.js';
 import { renderListings } from './admin/listings.js';
 import { renderListingEditor } from './admin/listing-editor.js';
+import { renderPrintCosts } from './admin/print-costs.js';
 import { renderBackup } from './admin/backup-view.js';
 import { renderSettings } from './admin/settings-view.js';
 
@@ -64,6 +65,7 @@ route('/artwork/:id', withChrome(renderArtwork));
 route('/artwork/:id/edit', withChrome(renderArtworkEdit));
 route('/listings', withChrome(renderListings));
 route('/listing/:id', withChrome(renderListingEditor));
+route('/print-costs', withChrome(renderPrintCosts));
 route('/backup', withChrome(renderBackup));
 route('/settings', withChrome(renderSettings));
 setNotFound(withChrome(async (host, { path }) => mount(host,
@@ -81,6 +83,10 @@ async function boot() {
     const result = await requestPersistence().catch(() => ({ supported: false }));
     await patchSettings({ persistence_requested: true, persistence_granted: !!result.persisted });
   }
+
+  // The print-cost template lays itself down once and tops up on later builds.
+  const { seedPrintCosts } = await import('./store/print-costs.js');
+  await seedPrintCosts();
 
   const seeded = await seedIfEmpty();
   if (seeded.seeded) {

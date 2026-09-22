@@ -109,6 +109,11 @@ export async function renderSettings(host) {
       } }, 'Reset templates to the B.6 seeds')),
 
     el('section', { class: 'panel' },
+      el('h2', null, 'Print costs'),
+      el('p', { class: 'hint' }, 'What each lab charges per size, and the margin those costs imply. Prints cost what the lab charges, not what the original took in hours, so they get their own numbers.'),
+      el('a', { class: 'btn ghost', href: '#/print-costs' }, 'Open the print cost template')),
+
+    el('section', { class: 'panel' },
       el('h2', null, 'Custom listings'),
       field('Holiday cutoff', el('input', {
         type: 'date', value: draft.holiday_cutoff ?? '',

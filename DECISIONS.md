@@ -93,6 +93,72 @@ Consequences already in the code:
 
 ---
 
+## Print costs (added after Phase 2)
+
+Scott can buy canvas or MDF prints from CanvasChamp, or genuine giclée from
+Nations Photo Lab, which is local to him. §8.1's price floor is built on hours,
+which is the right question for an original and the wrong one for a print: a
+print costs what the lab charges, however long the original took. So prints get
+their own arithmetic.
+
+### The template
+
+`Settings → Print costs`, or `#/print-costs`. Four lab lines × twelve sizes =
+48 rows, **all blank**. Blank is the normal state — fill in only the sizes
+worth offering and delete the rest. Nothing is guessed, because a margin built
+on an invented cost is worse than no margin at all.
+
+The twelve sizes are the five the live listings already sell (8 × 12, 12 × 12,
+12 × 18, 16 × 24, 24 × 24) plus the common ladder. Sizes are matched
+orientation-agnostically, so a 16 × 20 row covers a 20 × 16 variant.
+
+Filling 48 cells on a phone is friction, so the template round-trips through
+CSV: download, fill the `unit_cost` column in a spreadsheet, upload. Only the
+columns present in the file are touched, so a two-column `id,unit_cost` sheet
+changes only the price. Unknown ids are reported rather than silently creating
+rows, and a blank cell clears a value rather than reading as zero.
+
+### The arithmetic
+
+`fulfilment` on each lab decides which postage Scott actually pays:
+
+| | Inbound | He posts it |
+|---|---|---|
+| `dropship` — lab ships to the buyer | lab's charge | no |
+| `receive_and_ship` — lab ships to him | lab's charge | yes |
+| `local_pickup` — he collects | none | yes |
+
+Nations is seeded `local_pickup`, which is worth real money: being local saves
+the inbound leg on every print.
+
+    landed  = lab cost + inbound + postage out + packaging
+    breakEven = (landed + fixed fees) ÷ (1 − fee rate)
+    target    = (landed + fixed fees) ÷ (1 − fee rate − margin)
+
+Default target margin is **55%** of the sale price, with postage at $12 and
+packaging at $2.50 — all three editable on the same screen. None of these are
+in §5.10; they are additions.
+
+### What it drives
+
+1. **A lab comparison**, per size, cheapest first. The gap between two rows is
+   what genuine giclée costs the buyer. Worked example with $20 CanvasChamp
+   canvas against $34 Nations giclée at 16 × 20: $40.50 landed against $48.50,
+   so $115.35 against $137.89 at the same margin — **+$22.54** on the shelf.
+2. **Per-variant margin in the listing editor** — landed cost, break even,
+   target and what the current price actually leaves, for every variant whose
+   size is priced.
+3. **A new `print_below_cost` check**, at `stop` level. Unlike the hours floor,
+   this one is not a judgement call: under it, every sale loses money. A
+   separate `print_margin` note fires when a price clears cost but misses the
+   target margin.
+
+### Open
+
+The template is empty until Scott fills it. Until then the margin columns stay
+blank and the check stays quiet — it never invents a cost to have something to
+say.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text

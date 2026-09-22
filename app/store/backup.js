@@ -11,6 +11,7 @@ export const EXPORT_VERSION = 1;
 export const STORES = [
   'artworks', 'listings', 'sales', 'customers', 'commissions',
   'expenses', 'snapshots', 'backlog', 'images_blobs',
+  'print_costs', 'print_vendors',
 ];
 
 export function exportFilename(date = new Date()) {

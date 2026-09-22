@@ -7,6 +7,7 @@
 // findings out. Each finding is { id, level, field, message }.
 
 import { effectiveRights, printLimits, variantLongEdge } from '../store/schema.js';
+import { landedCost, breakEven, priceForMargin, costForVariant } from './print-pricing.js';
 import { withDefaults, priceFloor } from '../store/settings.js';
 import { SUBSTRATE_WORDS, PRINT_SUBSTRATE_WORDS, INK_WORDS } from './generate.js';
 
@@ -310,6 +311,44 @@ export function checkUnsupportedPrintClaims(listing) {
   return out;
 }
 
+/**
+ * §8.1's floor is built on hours, which says nothing useful about a print: a
+ * print costs what the lab charges. This is the print equivalent — and unlike
+ * the hours floor, being under it is not a judgement call. It is a loss on
+ * every sale.
+ */
+export function checkPrintMargin(listing, settings, { costRows = [], vendors = [] } = {}) {
+  if (listing.listing_type !== 'print' || !costRows.length) return [];
+  const s = withDefaults(settings);
+  const byName = new Map(vendors.map((v) => [v.name, v]));
+  const out = [];
+
+  for (const variant of listing.variants ?? []) {
+    if (typeof variant.price !== 'number') continue;
+    const row = costForVariant(variant, listing, costRows);
+    if (!row || !(Number(row.unit_cost) > 0)) continue;
+    const cost = landedCost(row, byName.get(row.vendor), s);
+    if (!cost) continue;
+
+    const floor = breakEven(cost, s);
+    const target = priceForMargin(cost, s, Number(s.target_print_margin));
+    const name = variant.label || `${variant.width_in} × ${variant.height_in}`;
+
+    if (variant.price < floor) {
+      out.push(finding('print_below_cost', 'stop', 'variants',
+        `${name} sells at $${variant.price.toFixed(2)} but costs $${cost.total.toFixed(2)} landed and needs `
+        + `$${floor.toFixed(2)} just to break even after Etsy's cut. Every one of these loses money.`));
+    } else if (target && variant.price < target) {
+      const got = Math.round(((variant.price - (variant.price * (s.etsy_transaction_pct + s.etsy_processing_pct) / 100)
+        - s.etsy_processing_fixed - s.etsy_listing_fee - cost.total) / variant.price) * 100);
+      out.push(finding('print_margin', 'note', 'variants',
+        `${name} at $${variant.price.toFixed(2)} leaves about ${got}% margin; your target of `
+        + `${Math.round(s.target_print_margin * 100)}% wants $${target.toFixed(2)}.`));
+    }
+  }
+  return out;
+}
+
 export function checkSuppression(listing) {
   if (!listing.suppression_suspected) return [];
   return [finding('suppression', 'warn', 'status',
@@ -319,7 +358,7 @@ export function checkSuppression(listing) {
 
 // --- the whole run ---------------------------------------------------------
 
-export function validateListing(listing, artwork, settings) {
+export function validateListing(listing, artwork, settings, context = {}) {
   const findings = [
     ...checkTitle(listing),
     ...checkTags(listing),
@@ -334,6 +373,7 @@ export function validateListing(listing, artwork, settings) {
     ...checkProcessingVsQuantity(listing),
     ...checkGicleeClaim(listing),
     ...checkUnsupportedPrintClaims(listing),
+    ...checkPrintMargin(listing, settings, context),
     ...checkSuppression(listing),
   ];
   return findings.sort((a, b) => LEVELS[b.level] - LEVELS[a.level]);

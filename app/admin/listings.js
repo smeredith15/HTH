@@ -24,7 +24,9 @@ export async function renderListings(host) {
       el('div', null,
         el('h1', null, 'Listings'),
         el('p', { class: 'muted', text: `${live.length} live and draft · ${rows.length} need attention` })),
-      el('button', { class: 'btn primary', type: 'button', onClick: () => addListing(artworks) }, '+ New listing')),
+      el('div', { class: 'row' },
+        el('a', { class: 'btn ghost', href: '#/print-costs' }, 'Print costs'),
+        el('button', { class: 'btn primary', type: 'button', onClick: () => addListing(artworks) }, '+ New listing'))),
 
     rows.length
       ? el('section', { class: 'panel alert warn' },

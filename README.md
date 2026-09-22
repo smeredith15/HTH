@@ -28,6 +28,16 @@ npm test
 
 No dependencies. Node's built-in test runner, plain ES modules.
 
+## Print costs
+
+`#/print-costs` holds what each lab charges per size — CanvasChamp canvas and
+wood, Nations Photo Lab giclée on paper and canvas. It starts blank; fill in
+only the sizes worth offering, by hand or through the CSV round trip.
+
+Once a size has a cost it drives the lab comparison, the per-variant margin in
+the listing editor, and a check that fires when a print is priced below what it
+costs to make. See DECISIONS.md for the arithmetic.
+
 ## Where the data lives
 
 Two layers, joined by artwork `id`:
