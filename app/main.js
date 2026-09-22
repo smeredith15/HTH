@@ -3,16 +3,20 @@
 
 import { route, setNotFound, start, parseHash } from './router.js';
 import { el, mount, toast } from './ui/dom.js';
-import { seedIfEmpty, requestPersistence, loadSettings, patchSettings } from './store/db.js';
+import { seedIfEmpty, refreshSeed, requestPersistence, loadSettings, patchSettings } from './store/db.js';
 import { renderHome } from './admin/home.js';
 import { renderCatalog, promptQuickAdd } from './admin/catalog.js';
 import { renderArtwork, renderArtworkEdit } from './admin/artwork.js';
+import { renderListings } from './admin/listings.js';
+import { renderListingEditor } from './admin/listing-editor.js';
+import { renderPrintCosts } from './admin/print-costs.js';
 import { renderBackup } from './admin/backup-view.js';
 import { renderSettings } from './admin/settings-view.js';
 
 const NAV = [
   ['/', 'Home'],
   ['/catalog', 'Catalog'],
+  ['/listings', 'Listings'],
   ['/backup', 'Backup'],
   ['/settings', 'Settings'],
 ];
@@ -59,6 +63,9 @@ route('/', withChrome(renderHome));
 route('/catalog', withChrome(renderCatalog));
 route('/artwork/:id', withChrome(renderArtwork));
 route('/artwork/:id/edit', withChrome(renderArtworkEdit));
+route('/listings', withChrome(renderListings));
+route('/listing/:id', withChrome(renderListingEditor));
+route('/print-costs', withChrome(renderPrintCosts));
 route('/backup', withChrome(renderBackup));
 route('/settings', withChrome(renderSettings));
 setNotFound(withChrome(async (host, { path }) => mount(host,
@@ -77,8 +84,21 @@ async function boot() {
     await patchSettings({ persistence_requested: true, persistence_granted: !!result.persisted });
   }
 
+  // The print-cost template lays itself down once and tops up on later builds.
+  const { seedPrintCosts } = await import('./store/print-costs.js');
+  await seedPrintCosts();
+
   const seeded = await seedIfEmpty();
-  if (seeded.seeded) toast(`Loaded ${seeded.artworks} pieces from the spec’s Appendix A.`, 'ok');
+  if (seeded.seeded) {
+    toast(`Loaded ${seeded.artworks} pieces from the spec’s Appendix A.`, 'ok');
+  } else {
+    // A device seeded by an earlier build catches up. Only untouched seed rows
+    // are refreshed; anything edited keeps its own version.
+    const caught = await refreshSeed();
+    if (caught.added || caught.refreshed) {
+      toast(`Appendix A updated: ${caught.added} added, ${caught.refreshed} refreshed${caught.kept ? `, ${caught.kept} of your edits kept` : ''}.`, 'ok');
+    }
+  }
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'n' && (event.metaKey || event.ctrlKey)) {

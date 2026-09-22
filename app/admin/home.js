@@ -4,14 +4,16 @@
 import { el, mount, label, relativeDays, pill } from '../ui/dom.js';
 import { listArtworks } from '../store/artworks.js';
 import { getAll, loadSettings, storageEstimate } from '../store/db.js';
+import { listListings, listingsNeedingAttention } from '../store/listings.js';
 import { exportAge } from '../store/backup.js';
 import { effectiveRights, hasUsableMaster, isGone } from '../store/schema.js';
 import { promptQuickAdd } from './catalog.js';
 
 export async function renderHome(host) {
-  const [artworks, backlog, settings, estimate] = await Promise.all([
-    listArtworks(), getAll('backlog'), loadSettings(), storageEstimate(),
+  const [artworks, listings, backlog, settings, estimate] = await Promise.all([
+    listArtworks(), listListings(), getAll('backlog'), loadSettings(), storageEstimate(),
   ]);
+  const attention = listingsNeedingAttention(listings, artworks, settings);
   const age = exportAge(settings.last_exported_at);
 
   const by = (fn) => artworks.reduce((acc, a) => {
@@ -53,6 +55,16 @@ export async function renderHome(host) {
         el('h2', null, 'Photograph before they leave'),
         el('p', null, `${needsPhoto.length} on-hand ${needsPhoto.length === 1 ? 'piece has' : 'pieces have'} no straight-on photo.`),
         listOf(needsPhoto))
+      : null,
+
+    attention.length
+      ? el('section', { class: `panel alert ${attention.some((r) => r.counts.stop) ? 'bad' : 'warn'}` },
+        el('h2', null, 'Listings needing attention'),
+        el('ul', { class: 'link-list' }, attention.slice(0, 8).map((row) =>
+          el('li', null,
+            el('a', { href: `#/listing/${row.listing.id}`, text: row.listing.title || row.listing.id }),
+            el('span', { class: 'muted small', text: ` — ${row.findings[0].message.split('.')[0]}.` })))),
+        attention.length > 8 ? el('p', { class: 'muted', text: `…and ${attention.length - 8} more.` }) : null)
       : null,
 
     el('div', { class: 'two-up' },

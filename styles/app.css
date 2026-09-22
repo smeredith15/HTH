@@ -371,3 +371,60 @@ input[type="checkbox"] { width: 20px; height: 20px; min-height: 20px; accent-col
   }
   body.booting #view { opacity: 1; }
 }
+
+/* --- listings and the generator (§7) ------------------------------------- */
+
+.labelled-control { position: relative; }
+.title-input { font-size: 1rem; line-height: 1.4; }
+.counter { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.labelled-control > .counter {
+  position: absolute; right: 0.6rem; bottom: -1.2rem;
+}
+.warn-text { color: var(--pine); }
+
+.chip.static { cursor: default; min-height: 34px; gap: 0.35rem; }
+.chip.static.over { border-color: var(--rust); color: var(--rust); }
+.tag-panel { margin: 0.75rem 0; }
+
+.findings { list-style: none; margin: 0.5rem 0 0.75rem; padding: 0; display: grid; gap: 0.5rem; }
+.findings li {
+  display: grid; grid-template-columns: auto auto 1fr; align-items: baseline;
+  gap: 0.5rem; font-size: 0.875rem;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--line);
+}
+.findings li:last-child { border-bottom: 0; padding-bottom: 0; }
+.finding-field {
+  font-size: 0.72rem; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+@media (max-width: 560px) {
+  .findings li { grid-template-columns: auto 1fr; }
+  .finding-field { grid-column: 2; }
+  .findings li > span:last-child { grid-column: 1 / -1; }
+}
+
+.output-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--gap);
+  padding: 0.6rem 0; border-bottom: 1px solid var(--line);
+}
+.output-row:last-child { border-bottom: 0; }
+.output-value { margin: 0.1rem 0 0; font-size: 0.9rem; word-break: break-word; }
+
+.btn.small { min-height: 36px; padding: 0 0.7rem; font-size: 0.85rem; }
+
+.variants table { min-width: 34rem; }
+.variants td input, .variants td select { min-height: 38px; }
+.variants td:first-child { min-width: 9rem; }
+
+.badges.inline { display: inline-flex; vertical-align: middle; }
+
+textarea.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px; line-height: 1.45;
+}
+
+/* --- print costs --------------------------------------------------------- */
+
+.table.costs td input { min-height: 38px; width: 6.5rem; }
+.table.costs td:first-child { white-space: nowrap; }
+.table.costs { min-width: 46rem; }

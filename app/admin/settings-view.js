@@ -3,6 +3,7 @@
 import { el, mount, field, toast, label } from '../ui/dom.js';
 import { loadSettings, saveSettings } from '../store/db.js';
 import { DEFAULT_SETTINGS, feeRate } from '../store/settings.js';
+import { SEED_TEMPLATES, placeholdersIn } from '../listing/templates.js';
 
 export async function renderSettings(host) {
   const settings = await loadSettings();
@@ -86,6 +87,47 @@ export async function renderSettings(host) {
             onInput: (e) => { draft.commission_prices[i].price = e.target.value === '' ? null : Number(e.target.value); },
           })))))),
       el('p', { class: 'hint' }, 'Leave a price blank for “quote”. Proposed September 2026 and not yet adopted on Etsy.')),
+
+    el('section', { class: 'panel' },
+      el('h2', null, 'Description templates'),
+      el('p', { class: 'hint' }, 'Placeholders are {{name}} and resolve from the artwork record. A placeholder the record cannot fill is reported on the listing screen rather than left as a hole in the text.'),
+      ...['original', 'print', 'custom'].map((type) => {
+        const current = draft.templates?.[type] ?? SEED_TEMPLATES[type];
+        return field(`${label(type)} listings`, el('textarea', {
+          rows: 10, value: current, class: 'mono',
+          onInput: (e) => {
+            draft.templates = { ...(draft.templates ?? {}) };
+            draft.templates[type] = e.target.value;
+          },
+        }), `Available: ${placeholdersIn(SEED_TEMPLATES[type]).map((k) => `{{${k}}}`).join(' ')}`);
+      }),
+      el('button', { class: 'btn ghost', type: 'button', onClick: () => {
+        draft.templates = {};
+        toast('Templates reset to the spec seeds. Save to keep it.');
+        location.hash = '#/settings';
+        location.reload();
+      } }, 'Reset templates to the B.6 seeds')),
+
+    el('section', { class: 'panel' },
+      el('h2', null, 'Print costs'),
+      el('p', { class: 'hint' }, 'What each lab charges per size, and the margin those costs imply. Prints cost what the lab charges, not what the original took in hours, so they get their own numbers.'),
+      el('a', { class: 'btn ghost', href: '#/print-costs' }, 'Open the print cost template')),
+
+    el('section', { class: 'panel' },
+      el('h2', null, 'Custom listings'),
+      field('Holiday cutoff', el('input', {
+        type: 'date', value: draft.holiday_cutoff ?? '',
+        onInput: (e) => { draft.holiday_cutoff = e.target.value || null; },
+      }), 'The last date you will take a holiday order. Seeded at October 23 — Christmas minus the 8-week worst case, minus a week to ship. Assumed, not from the spec.'),
+      el('div', { class: 'two-up' },
+        field('Processing, min weeks', el('input', {
+          type: 'number', value: draft.processing_weeks?.[0] ?? 6,
+          onInput: (e) => { draft.processing_weeks = [Number(e.target.value), draft.processing_weeks?.[1] ?? 8]; },
+        })),
+        field('Processing, max weeks', el('input', {
+          type: 'number', value: draft.processing_weeks?.[1] ?? 8,
+          onInput: (e) => { draft.processing_weeks = [draft.processing_weeks?.[0] ?? 6, Number(e.target.value)]; },
+        })))),
 
     el('section', { class: 'panel' },
       el('h2', null, 'Trademark blocklist'),

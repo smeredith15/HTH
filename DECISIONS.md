@@ -7,6 +7,67 @@ Anything in here is reversible. Say the word and it changes.
 
 ---
 
+## Answered by the owner before Phase 2
+
+| Question | Answer |
+|---|---|
+| Print vendor / giclée | **CanvasChamp** (canvaschamp.com). Recorded as `print_vendor` on the three canvas listings. The process stays `unknown` — see below. |
+| `{{history_paragraph}}` source | **A new public `history` field.** Separate from private `notes`. |
+| Split the custom listing | **Yes, seed all three** (pet, family, sports) as drafts from B.7. |
+| Branch | Phase 1 merged to `main`; Phase 2 built on a branch restarted from it. |
+
+### The giclée question — settled
+
+CanvasChamp's own product pages answer it, and the answer is no. Two different
+processes, neither of them giclée:
+
+| Line | What the vendor says | `print_process` |
+|---|---|---|
+| Canvas | "UV-resistant & solvent-free **latex inks**" on premium poly-cotton canvas over a wood frame | `digital` |
+| Wood | "We print directly on wood with permanent **UV ink**" onto "MDF composite wood material" | `uv_direct` |
+
+Giclée means archival **pigment** ink on a fine-art substrate. Latex is a
+durable inkjet process and UV-cured ink is durable too, but neither is that.
+So `print_process` is now recorded as confirmed fact rather than `unknown`, and
+`print_vendor: 'CanvasChamp'` is on all six print listings.
+
+**What this changes:**
+
+1. The **whale and the flag** sit in Etsy's *Giclée* category on a claim the
+   vendor does not support. The validator flags both. The fix is moving them to
+   *Digital Prints* — which is what `suggestCategoryPath` now proposes for
+   every one of these listings, since none can be giclée.
+2. `suggestMaterials` used to put **"archival ink"** on every print. That was
+   wrong and is now derived from the process: `latex ink`, `uv ink`, or
+   `archival pigment ink` — and **nothing at all** when the process is
+   unconfirmed, because an unsupported claim is worse than a missing one.
+3. A new check, `archival_claim`, catches "archival" anywhere in a print's
+   title, description or materials unless the process really is giclée. A
+   companion note flags "museum quality", which is the vendor's marketing
+   phrase rather than a property of the listing. A test asserts that no
+   generated listing can produce a claim its own validators would reject.
+4. The print description now carries an accurate ink sentence:
+   *"The inks are solvent-free and UV-resistant."* for canvas,
+   *"The ink is permanent UV ink, cured onto the surface."* for wood.
+   Those are claims that can be stood behind.
+
+### CanvasChamp contradicts itself on the wood substrate
+
+Their wood page says the panels are "Chromaluxe Wooden Panels" in one section
+and "MDF composite wood material" in another. The spec calls the surf van and
+cactus prints "print on MDF" and the ship wheel a "wood print", so the seed
+keeps `mdf` for the first two and `wood_panel` for the third. Worth one
+question to the vendor if the Etsy materials list needs to be exact — it is the
+kind of small contradiction §1.1 is about.
+
+### Their recommended input resolution is far above ours
+
+CanvasChamp asks for 1040 DPI input on wood prints. §5.4's limits stay at
+150 DPI good / 100 DPI floor, because those are the spec's numbers and they are
+the right thresholds for judging a master. But it does mean the lost-catalog
+problem is worse than the app currently shows: files that clear our 150 DPI bar
+may still be below what the vendor wants.
+
 ## Answered by the owner before Phase 1
 
 | Question | Answer |
@@ -32,7 +93,95 @@ Consequences already in the code:
 
 ---
 
+## Print costs (added after Phase 2)
+
+Scott can buy canvas or MDF prints from CanvasChamp, or genuine giclée from
+Nations Photo Lab, which is local to him. §8.1's price floor is built on hours,
+which is the right question for an original and the wrong one for a print: a
+print costs what the lab charges, however long the original took. So prints get
+their own arithmetic.
+
+### The template
+
+`Settings → Print costs`, or `#/print-costs`. Four lab lines × twelve sizes =
+48 rows, **all blank**. Blank is the normal state — fill in only the sizes
+worth offering and delete the rest. Nothing is guessed, because a margin built
+on an invented cost is worse than no margin at all.
+
+The twelve sizes are the five the live listings already sell (8 × 12, 12 × 12,
+12 × 18, 16 × 24, 24 × 24) plus the common ladder. Sizes are matched
+orientation-agnostically, so a 16 × 20 row covers a 20 × 16 variant.
+
+Filling 48 cells on a phone is friction, so the template round-trips through
+CSV: download, fill the `unit_cost` column in a spreadsheet, upload. Only the
+columns present in the file are touched, so a two-column `id,unit_cost` sheet
+changes only the price. Unknown ids are reported rather than silently creating
+rows, and a blank cell clears a value rather than reading as zero.
+
+### The arithmetic
+
+`fulfilment` on each lab decides which postage Scott actually pays:
+
+| | Inbound | He posts it |
+|---|---|---|
+| `dropship` — lab ships to the buyer | lab's charge | no |
+| `receive_and_ship` — lab ships to him | lab's charge | yes |
+| `local_pickup` — he collects | none | yes |
+
+Nations is seeded `local_pickup`, which is worth real money: being local saves
+the inbound leg on every print.
+
+    landed  = lab cost + inbound + postage out + packaging
+    breakEven = (landed + fixed fees) ÷ (1 − fee rate)
+    target    = (landed + fixed fees) ÷ (1 − fee rate − margin)
+
+Default target margin is **55%** of the sale price, with postage at $12 and
+packaging at $2.50 — all three editable on the same screen. None of these are
+in §5.10; they are additions.
+
+### What it drives
+
+1. **A lab comparison**, per size, cheapest first. The gap between two rows is
+   what genuine giclée costs the buyer. Worked example with $20 CanvasChamp
+   canvas against $34 Nations giclée at 16 × 20: $40.50 landed against $48.50,
+   so $115.35 against $137.89 at the same margin — **+$22.54** on the shelf.
+2. **Per-variant margin in the listing editor** — landed cost, break even,
+   target and what the current price actually leaves, for every variant whose
+   size is priced.
+3. **A new `print_below_cost` check**, at `stop` level. Unlike the hours floor,
+   this one is not a judgement call: under it, every sale loses money. A
+   separate `print_margin` note fires when a price clears cost but misses the
+   target margin.
+
+### Open
+
+The template is empty until Scott fills it. Until then the margin columns stay
+blank and the check stays quiet — it never invents a cost to have something to
+say.
+
 ## Assumptions made without asking
+
+### 0. Two B.6 templates deviate from the spec text
+
+B.6's print template reads *"The original measured {{orig_width}} ×
+{{orig_height}} in and took about {{hours}} hours."* — but §2.1 makes every
+field optional, and most seeded pieces have no hours. Rendered verbatim that
+produces *"took about  hours."*, and a piece with no dimensions produces
+*"Measures  ×  in."*
+
+The fragile placeholders are therefore composed sentences that vanish cleanly
+when the record cannot supply them:
+
+| Was | Now |
+|---|---|
+| `Measures {{width_in}} × {{height_in}} × {{depth_in}} in. {{substrate_note}}.` | `{{measures_sentence}} {{substrate_note_sentence}}` |
+| `The original measured {{orig_width}} × {{orig_height}} in and took about {{hours}} hours.` | `{{original_size_sentence}}` |
+
+The raw values are still in the template context, so a hand-edited template can
+use them. Templates are editable in Settings and resettable to the B.6 seeds.
+
+The renderer also fixes article agreement — B.6's *"a {{print_substrate}}
+print"* produced *"a MDF print"*.
 
 ### 1. Seed visibility
 
@@ -113,11 +262,28 @@ Nothing is blocked on these — each has a working default in place.
 5. **Category for the two western pieces.** The cactus-and-skull and the
    flag-and-skull have no obvious home in the §5.1 enum; both seeded as `other`.
    A `western` category may be worth adding.
-6. **No photographs exist in the repo.** Phase 3 builds the in-browser resizing
+6. **Which wood panel does CanvasChamp actually use** — Chromaluxe or MDF
+   composite? Their own pages say both. Only matters for the Etsy materials
+   list being exact.
+7. **No photographs exist in the repo.** Phase 3 builds the in-browser resizing
    and Phase 4 publishes images, but the kiosk and the portfolio will be empty
    until pieces are actually shot.
 
 ---
+
+### 7. Holiday cutoff
+
+B.6's custom template needs `{{holiday_cutoff}}` and nothing supplies a date.
+Seeded at **23 October 2026** — Christmas minus the 8-week worst case, minus a
+week to ship. Editable in Settings → Custom listings.
+
+### 8. Seed catch-up on an already-seeded device
+
+Phase 1 seeded 10 listings; Phase 2 adds three drafts and B.7's copy. Rather
+than leave existing devices behind, the app tops itself up on boot: a seed row
+is refreshed **only while its `updated_at` is still the 2026-09-22 seed date**,
+which means it has never been touched. Anything edited keeps its own version.
+Verified in a browser against a simulated Phase 1 database.
 
 ## Spec issues found
 
@@ -135,7 +301,19 @@ Recorded rather than fixed unilaterally.
    **V**. The builder has to strip per-image private fields too, not just
    top-level ones. `PUBLIC_IMAGE_FIELDS` in `app/store/schema.js` is the
    allow-list for that; the Phase 4 test will assert against both.
-3. **Both field lists are allow-lists, not deny-lists.** A field added to the
+3. **§7.4 lists 17 checks, not 16.** Counted: title length, title separators,
+   title opener, tag count, tag length, tag form, tag duplicates, trademark
+   terms, substrate consistency, dimension consistency, off-site redirects,
+   round variant, print resolution, rights, price floor, processing vs
+   quantity, giclée claim. All 17 are implemented, plus one the spec implies
+   but does not tabulate: a suppression-suspected listing says so.
+4. **The substrate validator needs to know about frames.** §7.4 says the
+   description must not mention a substrate word other than the listing's own,
+   but the golf bag is birch *in a pine frame* and the Cilleyville bridge hangs
+   in a *gold metal float*. Taken literally the rule flags both. The
+   implementation masks `frame_material`, `hanging_hardware` and `finish` out of
+   the text before scanning.
+5. **Both field lists are allow-lists, not deny-lists.** A field added to the
    model later is private until someone deliberately adds its name to
    `PUBLIC_ARTWORK_FIELDS`. That is the safer default for §2.3's "impossible to
    publish by accident", and `tests/schema.test.js` asserts the two lists never

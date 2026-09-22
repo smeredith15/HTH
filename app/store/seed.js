@@ -30,7 +30,8 @@ const A1 = [
     framed: true, frame_material: 'gold metal float',
     asking_price: 285,
     techniques: ['scorch_and_carve'],
-    notes: 'Winter scene. Built 1887, Town lattice truss, National Register 1989; also called Bog Bridge. Reference source unknown — fill in.',
+    history: 'Built in 1887, the Cilleyville Bridge is a Town lattice truss and one of the last of its kind in the region. It was added to the National Register of Historic Places in 1989. Locals still call it the Bog Bridge.',
+    notes: 'Winter scene. Reference source unknown — fill in.',
     reference_source: null,
     rights: { flags: [], print_ok: null, listing_ok: null },
     primary_listing_url: 'https://www.etsy.com/listing/4577252633',
@@ -294,19 +295,68 @@ export const SEED_ARTWORKS = [...A1, ...A2, ...A3, ...A4].map((patch) => ({
   updated_at: SEED_AT,
 }));
 
-// Listings from A.1. The generator and validators arrive in Phase 2; these are
+const CUSTOM_DRAFTS = [
+  {
+    id: 'lst-custom-pet', custom_kind: 'pet',
+    title: 'Custom Pet Portrait on Wood, Hand Carved Pyrography from Your Photo, Dog Memorial Gift, Personalized Cat Portrait, Burnt Wood Art',
+    tags: ['custom pet portrait', 'pet memorial gift', 'dog portrait gift', 'custom dog art', 'cat portrait art', 'pet loss gift', 'personalized pet art', 'wood burned portrait', 'pet photo gift', 'dog mom gift', 'custom wood art', 'pyrography portrait', 'pet remembrance'],
+  },
+  {
+    id: 'lst-custom-family', custom_kind: 'family',
+    title: 'Custom Family Portrait on Wood, Hand Carved Pyrography from Your Photo, 5th Anniversary Wood Gift, Personalized Couple Portrait',
+    tags: ['custom portrait', 'family portrait art', 'anniversary gift', 'couple portrait', 'personalized gift', 'wedding gift art', 'custom wood art', 'photo to art gift', 'memorial portrait', 'parents gift', 'pyrography portrait', 'wood burned portrait', '5th anniversary'],
+  },
+  {
+    id: 'lst-custom-sports', custom_kind: 'sports',
+    title: 'Custom Sports Portrait on Wood, Hand Carved Pyrography from Your Photo, Senior Night Gift, Coach Retirement Gift, Athlete Wall Art',
+    tags: ['custom sports art', 'senior night gift', 'coach gift', 'athlete portrait', 'football gift', 'baseball gift', 'sports wall art', 'team gift idea', 'custom wood art', 'personalized gift', 'pyrography portrait', 'graduation gift', 'sports memorabilia'],
+  },
+].map((draft) => ({
+  ...draft,
+  artwork_id: null,
+  channel: 'etsy',
+  listing_type: 'custom',
+  status: 'draft',
+  quantity: 3,                 // §B.1: made-to-order takes processing time, not quantity 1
+  processing_weeks: [6, 8],
+  free_shipping: true,
+  materials: ['birch', 'pine frame', 'sealant'],
+  category_path: 'Art & Collectibles > Drawing & Illustration > Portraits',
+  variants: [
+    { label: '8 × 10, 1 subject', width_in: 8, height_in: 10, shape: 'rect', price: 400 },
+    { label: '11 × 14, 1 subject', width_in: 11, height_in: 14, shape: 'rect', price: 500 },
+    { label: '11 × 14, 2 subjects', width_in: 11, height_in: 14, shape: 'rect', price: 650 },
+    { label: '16 × 20, 1 subject', width_in: 16, height_in: 20, shape: 'rect', price: 650 },
+    { label: '16 × 20, 2 subjects', width_in: 16, height_in: 20, shape: 'rect', price: 800 },
+  ],
+}));
+
+// Listings from A.1.
+//
+// Print processes confirmed from CanvasChamp's own product pages (October 2026):
+//   canvas  — "UV-resistant & solvent-free latex inks" on premium poly-cotton
+//             canvas over a wood frame. Latex inkjet, so `digital`.
+//   wood    — "We print directly on wood with permanent UV ink" onto "MDF
+//             composite wood material", so `uv_direct`.
+// Neither is giclée, which means archival pigment ink on a fine-art substrate.
+// The whale and the flag therefore sit in Etsy's Giclée category on a claim the
+// vendor does not support, and the validator says so. The generator and validators arrive in Phase 2; these are
 // seeded now so the Etsy record is captured in one pass.
 export const SEED_LISTINGS = withSeedDate([
-  { id: 'lst-cilleyville', artwork_id: 'cilleyville-covered-bridge', channel: 'etsy', etsy_listing_id: '4577252633', etsy_url: 'https://www.etsy.com/listing/4577252633', listing_type: 'original', status: 'active', variants: [{ label: '12 × 12', width_in: 12, height_in: 12, shape: 'square', price: 285 }], created_on: null },
-  { id: 'lst-custom-portrait', artwork_id: null, channel: 'etsy', etsy_listing_id: '1863119781', etsy_url: 'https://www.etsy.com/listing/1863119781', listing_type: 'custom', status: 'active', quantity: 1, variants: [{ label: 'smallest', price: 150 }], description: 'To be split into pet, family and sports listings (B.7) and repriced per §8.2.' },
-  { id: 'lst-moose', artwork_id: 'moose', channel: 'etsy', etsy_listing_id: '4301574396', etsy_url: 'https://www.etsy.com/listing/4301574396', listing_type: 'original', status: 'active', variants: [{ label: '16 × 12', width_in: 16, height_in: 12, shape: 'rect', price: 250 }] },
-  { id: 'lst-surf-van', artwork_id: 'surf-van', channel: 'etsy', etsy_listing_id: '1884246466', etsy_url: 'https://www.etsy.com/listing/1884246466', listing_type: 'print', print_substrate: 'mdf', print_process: 'unknown', status: 'active', suppression_suspected: true, variants: [{ label: 'from', price: 80 }] },
-  { id: 'lst-cactus-skull', artwork_id: 'western-cactus-longhorn-skull', channel: 'etsy', etsy_listing_id: '1759413854', etsy_url: 'https://www.etsy.com/listing/1759413854', listing_type: 'print', print_substrate: 'mdf', print_process: 'unknown', status: 'active', suppression_suspected: false, variants: [{ label: '12 × 8', width_in: 12, height_in: 8, shape: 'rect', price: 55 }, { label: '18 × 12', width_in: 18, height_in: 12, shape: 'rect', price: 75 }, { label: '24 × 16', width_in: 24, height_in: 16, shape: 'rect', price: 140 }] },
-  { id: 'lst-golf-bag', artwork_id: 'golf-bag', channel: 'etsy', etsy_listing_id: '1239539354', etsy_url: 'https://www.etsy.com/listing/1239539354', listing_type: 'original', status: 'active', variants: [{ label: '18.5 × 31', width_in: 18.5, height_in: 31, shape: 'rect', price: 495 }] },
-  { id: 'lst-toucan', artwork_id: 'toucan', channel: 'etsy', etsy_listing_id: '1167916799', etsy_url: 'https://www.etsy.com/listing/1167916799', listing_type: 'print', print_substrate: 'canvas', print_process: 'unknown', status: 'active', variants: [{ label: 'standard', price: 47 }] },
-  { id: 'lst-humpback-whale', artwork_id: 'humpback-whale', channel: 'etsy', etsy_listing_id: '1167279219', etsy_url: 'https://www.etsy.com/listing/1167279219', listing_type: 'print', print_substrate: 'canvas', print_process: 'unknown', status: 'active', favorites_snapshot: 18, category_path: 'Giclée', variants: [{ label: 'from', price: 50 }, { label: 'largest', price: 340 }] },
-  { id: 'lst-longhorn-skull-flag', artwork_id: 'longhorn-skull-flag', channel: 'etsy', etsy_listing_id: '1167295187', etsy_url: 'https://www.etsy.com/listing/1167295187', listing_type: 'print', print_substrate: 'canvas', print_process: 'unknown', status: 'active', favorites_snapshot: 10, suppression_suspected: true, category_path: 'Giclée', variants: [{ label: 'from', price: 50 }, { label: 'largest', price: 340 }] },
-  { id: 'lst-peace-sign', artwork_id: 'peace-sign-globe-ship-wheel', channel: 'etsy', etsy_listing_id: '1851378216', etsy_url: 'https://www.etsy.com/listing/1851378216', listing_type: 'print', print_substrate: 'wood_panel', print_process: 'unknown', status: 'active', favorites_snapshot: 1, variants: [{ label: 'square', price: 80 }] },
+  { id: 'lst-cilleyville', title: "Cilleyville Covered Bridge Wood Burning Art, Andover NH Pyrography, Original Framed Wall Art, New Hampshire Winter Landscape", tags: ["cilleyville bridge", "bog bridge art", "covered bridge art", "new hampshire art", "andover nh", "pyrography art", "wood burning art", "new england decor", "winter landscape", "rustic wall art", "original wood art", "covered bridge gift", "woodburned art"], artwork_id: 'cilleyville-covered-bridge', channel: 'etsy', etsy_listing_id: '4577252633', etsy_url: 'https://www.etsy.com/listing/4577252633', listing_type: 'original', status: 'active', variants: [{ label: '12 × 12', width_in: 12, height_in: 12, shape: 'square', price: 285 }], created_on: null },
+  { id: 'lst-custom-portrait', artwork_id: null, channel: 'etsy', etsy_listing_id: '1863119781', etsy_url: 'https://www.etsy.com/listing/1863119781', listing_type: 'custom', status: 'active', quantity: 1, variants: [{ label: 'smallest', price: 150 }], description: 'To be split into pet, family and sports listings (B.7) and repriced per §8.2.', replaced_by: 'lst-custom-pet,lst-custom-family,lst-custom-sports' },
+  { id: 'lst-moose', title: "Moose Wall Art, Scorched and Carved Wood, Original Cabin Decor, Rustic Lodge Wall Hanging, Woodland Nature Art, Hunting Cabin Gift", tags: ["moose wall art", "moose decor", "cabin wall decor", "lodge wall art", "rustic wall art", "wood burning art", "pyrography art", "original wood art", "woodland decor", "hunting cabin art", "carved wood art", "moose gift", "log cabin decor"], artwork_id: 'moose', channel: 'etsy', etsy_listing_id: '4301574396', etsy_url: 'https://www.etsy.com/listing/4301574396', listing_type: 'original', status: 'active', variants: [{ label: '16 × 12', width_in: 16, height_in: 12, shape: 'rect', price: 250 }] },
+  { id: 'lst-surf-van', title: "Surf Van Wall Art, Vintage Camper Beach Print on Wood, Coastal Van Life Decor, Retro Surfer Gift, Boho Beach House Art", tags: ["surf van wall art", "van life decor", "beach wall art", "coastal wall decor", "surfer gift", "vintage van art", "camper van art", "hippie wall art", "boho beach decor", "wood burning art", "pyrography print", "surf shack decor", "retro van art"], artwork_id: 'surf-van', channel: 'etsy', etsy_listing_id: '1884246466', etsy_url: 'https://www.etsy.com/listing/1884246466', listing_type: 'print', print_substrate: 'mdf', print_process: 'uv_direct', print_vendor: 'CanvasChamp', status: 'active', suppression_suspected: true, variants: [{ label: '12 × 12', width_in: 12, height_in: 12, shape: 'square', price: 80 }, { label: 'round', shape: 'round', price: 80 }] },
+  { id: 'lst-cactus-skull', title: "Cow Skull Wall Art, Western Desert Cactus Print on Wood, Southwestern Boho Decor, Longhorn Skull Rustic Ranch Art", tags: ["cow skull wall art", "steer skull decor", "western wall art", "boho desert decor", "cactus wall art", "southwestern decor", "longhorn skull art", "rustic wall art", "wood burning art", "desert wall art", "ranch house decor", "western gift", "pyrography print"], artwork_id: 'western-cactus-longhorn-skull', channel: 'etsy', etsy_listing_id: '1759413854', etsy_url: 'https://www.etsy.com/listing/1759413854', listing_type: 'print', print_substrate: 'mdf', print_process: 'uv_direct', print_vendor: 'CanvasChamp', status: 'active', suppression_suspected: false, variants: [{ label: '12 × 8', width_in: 12, height_in: 8, shape: 'rect', price: 55 }, { label: '18 × 12', width_in: 18, height_in: 12, shape: 'rect', price: 75 }, { label: '24 × 16', width_in: 24, height_in: 16, shape: 'rect', price: 140 }] },
+  { id: 'lst-golf-bag', title: "Golf Wall Art, Vintage Golf Bag Wood Carving, Original Clubhouse Decor, Antique Golfer Gift, Man Cave Sports Art, Handmade Wall Hanging", tags: ["golf wall art", "vintage golf decor", "golf gift for him", "clubhouse decor", "man cave wall art", "golf bag art", "antique golf art", "sports bar decor", "original wood art", "retirement gift", "golfer gift", "wood burning art", "country club decor"], artwork_id: 'golf-bag', channel: 'etsy', etsy_listing_id: '1239539354', etsy_url: 'https://www.etsy.com/listing/1239539354', listing_type: 'original', status: 'active', variants: [{ label: '18.5 × 31', width_in: 18.5, height_in: 31, shape: 'rect', price: 495 }] },
+  { id: 'lst-toucan', artwork_id: 'toucan', channel: 'etsy', etsy_listing_id: '1167916799', etsy_url: 'https://www.etsy.com/listing/1167916799', listing_type: 'print', print_substrate: 'canvas', print_process: 'digital', print_vendor: 'CanvasChamp', status: 'active', variants: [{ label: 'standard', price: 47 }] },
+  { id: 'lst-humpback-whale', title: "Humpback Whale Wall Art, Large Coastal Canvas Print, Nautical Beach House Decor, Blue Ocean Whale Art, Carved Wood Reproduction", tags: ["humpback whale art", "whale wall art", "coastal wall art", "nautical wall decor", "beach house decor", "large canvas art", "ocean wall art", "whale canvas print", "blue coastal decor", "marine life art", "beach wall art", "whale lover gift", "lake house decor"], artwork_id: 'humpback-whale', channel: 'etsy', etsy_listing_id: '1167279219', etsy_url: 'https://www.etsy.com/listing/1167279219', listing_type: 'print', print_substrate: 'canvas', print_process: 'digital', print_vendor: 'CanvasChamp', status: 'active', favorites_snapshot: 18, category_path: 'Giclée', variants: [{ label: 'from', price: 50 }, { label: 'largest', price: 340 }] },
+  { id: 'lst-longhorn-skull-flag', title: "American Flag Wall Art, Longhorn Skull Canvas Print, Rustic Patriotic Western Decor, Distressed Flag Art, Ranch Farmhouse Wall Hanging", tags: ["american flag art", "rustic flag decor", "longhorn skull art", "western wall art", "patriotic wall art", "cow skull decor", "distressed flag", "ranch house decor", "southwestern decor", "veteran gift", "july 4th decor", "large canvas art", "farmhouse wall art"], artwork_id: 'longhorn-skull-flag', channel: 'etsy', etsy_listing_id: '1167295187', etsy_url: 'https://www.etsy.com/listing/1167295187', listing_type: 'print', print_substrate: 'canvas', print_process: 'digital', print_vendor: 'CanvasChamp', status: 'active', favorites_snapshot: 10, suppression_suspected: true, category_path: 'Giclée', variants: [{ label: 'from', price: 50 }, { label: 'largest', price: 340 }] },
+  { id: 'lst-peace-sign', title: "Peace Sign Wall Art, World Map Ship Wheel Wood Print, Nautical Boho Decor, Travel Gift, Woodburned Globe Art", tags: ["peace sign wall art", "world map wall art", "nautical wall decor", "boho wall art", "ship wheel decor", "travel gift", "globe wall art", "wood burning art", "coastal wall art", "hippie home decor", "pyrography print", "world traveler gift", "beach house art"], artwork_id: 'peace-sign-globe-ship-wheel', channel: 'etsy', etsy_listing_id: '1851378216', etsy_url: 'https://www.etsy.com/listing/1851378216', listing_type: 'print', print_substrate: 'wood_panel', print_process: 'uv_direct', print_vendor: 'CanvasChamp', status: 'active', favorites_snapshot: 1, variants: [{ label: 'square', shape: 'square', price: 80 }, { label: 'round', shape: 'round', price: 80 }] },
+  // B.8: split the $150 custom listing into three, adopt the §8.2 prices, set
+  // quantity to 3 and processing to 6–8 weeks. Seeded as drafts — nothing is
+  // live on Etsy until Scott creates them there.
+  ...CUSTOM_DRAFTS,
 ]);
 
 function withSeedDate(rows) {
