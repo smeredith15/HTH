@@ -125,7 +125,8 @@ a { color: var(--pine); }
     backdrop-filter: blur(8px);
     border-top: 1px solid var(--line);
   }
-  .nav a { flex: 1; font-size: 0.8rem; }
+  /* Six across at 412px, so the padding has to give. */
+  .nav a { flex: 1; min-width: 0; padding: 0 0.25rem; font-size: 0.72rem; }
 }
 
 #view {

@@ -13,10 +13,12 @@ import { renderPrintCosts } from './admin/print-costs.js';
 import { renderBackup } from './admin/backup-view.js';
 import { renderSettings } from './admin/settings-view.js';
 
+// Short labels because the phone nav is a six-across bottom bar.
 const NAV = [
   ['/', 'Home'],
   ['/catalog', 'Catalog'],
   ['/listings', 'Listings'],
+  ['/print-costs', 'Costs'],
   ['/backup', 'Backup'],
   ['/settings', 'Settings'],
 ];
@@ -42,13 +44,29 @@ function withChrome(render) {
   };
 }
 
+// Detail screens belong to the section they came from: an artwork is Catalog,
+// a listing is Listings. Without this the nav goes blank the moment you open
+// anything.
+const NAV_OWNER = { '/artwork/': '/catalog', '/listing/': '/listings' };
+
+function navTargetFor(path) {
+  for (const [prefix, target] of Object.entries(NAV_OWNER)) {
+    if (path.startsWith(prefix)) return target;
+  }
+  if (path === '/') return '/';
+  // Longest matching nav path wins, so /listings never claims /listing/:id.
+  return NAV.map(([target]) => target)
+    .filter((target) => target !== '/' && path.startsWith(target))
+    .sort((a, b) => b.length - a.length)[0] ?? null;
+}
+
 function highlightNav() {
-  const { path } = parseHash();
+  const active = navTargetFor(parseHash().path);
   for (const link of document.querySelectorAll('.nav a')) {
     const target = link.getAttribute('href').slice(1);
-    const active = target === '/' ? path === '/' : path.startsWith(target);
-    link.classList.toggle('active', active);
-    if (active) link.setAttribute('aria-current', 'page');
+    const isActive = target === active;
+    link.classList.toggle('active', isActive);
+    if (isActive) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
 }
