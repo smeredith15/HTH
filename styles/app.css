@@ -429,3 +429,8 @@ textarea.mono {
 .table.costs td input { min-height: 38px; width: 6.5rem; }
 .table.costs td:first-child { white-space: nowrap; }
 .table.costs { min-width: 46rem; }
+
+.mount-cell { display: flex; flex-direction: column; gap: 0.2rem; }
+.mount-cell input[type="number"] { width: 5rem; }
+.check.tight { min-height: 28px; margin-bottom: 0; gap: 0.35rem; }
+.table.costs { min-width: 54rem; }

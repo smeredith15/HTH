@@ -153,11 +153,57 @@ in §5.10; they are additions.
    separate `print_margin` note fires when a price clears cost but misses the
    target margin.
 
+### The two labs quote different products
+
+Established October 2026, and it matters more than the headline prices do:
+
+- **CanvasChamp** quotes a finished piece. Proofing and hanging hardware are in
+  the price, so nothing is added to make it ready to hang.
+- **Nations Photo Lab** quotes a bare print. Ready to hang needs a 3/16 in
+  white foamcore mount at roughly **50% of the base price again**.
+
+Comparing $20 against $34 without that is comparing a finished canvas against a
+sheet of paper. Each product line therefore carries `includes` and `finishing`,
+and the mount lands inside the landed cost rather than beside it. The Mount
+column can be unticked to price a bare print, or typed over with a flat figure
+when the percentage is wrong.
+
+### Nations drop-ships
+
+They are local, but their site offers no in-person collection, and their
+postage is likely cheaper than Scott's. So `fulfilment` is `dropship`: they
+ship to the buyer, their shipping charge is the only postage, and Scott pays no
+packaging.
+
+That is a real asymmetry against CanvasChamp, which is `receive_and_ship` —
+Scott pays inbound, postage out and packaging on every one of those. It is
+worth checking whether CanvasChamp will drop-ship too, because it is worth
+about $14.50 a print.
+
+Worked at 16 × 20, with $20 CanvasChamp canvas and $34 Nations giclée:
+
+| | Landed | Target at 55% |
+|---|---|---|
+| CanvasChamp canvas, hardware included | $40.50 | $115.35 |
+| Nations giclée + $17 mount, drop-shipped | $59.00 | $167.46 |
+
+So genuine giclée costs the buyer **+$52.11** at that size — rather more than
+the +$22.54 the earlier, wrong comparison suggested.
+
+### Neither lab is proofed yet
+
+Each lab carries a `quality_checked_on` date, empty until Scott has held one of
+their prints and been happy with it. Until then every comparison row says "not
+proofed", because a cost comparison between two products nobody has seen is
+only half an answer.
+
 ### Open
 
 The template is empty until Scott fills it. Until then the margin columns stay
 blank and the check stays quiet — it never invents a cost to have something to
 say.
+
+Whether CanvasChamp will drop-ship is unasked, and worth about $14.50 a print.
 
 ## Assumptions made without asking
 

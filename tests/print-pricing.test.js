@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  landedCost, breakEven, priceForMargin, marginAt, priceGuidance,
+  landedCost, finishingCost, breakEven, priceForMargin, marginAt, priceGuidance,
   compareVendors, sameSize, costForVariant,
 } from '../app/listing/print-pricing.js';
 import {
-  buildTemplate, toCSV, parseCSV, applyCSV, CSV_COLUMNS, SEED_VENDORS, PRODUCT_LINES, SEED_SIZES,
+  buildTemplate, toCSV, parseCSV, applyCSV, CSV_COLUMNS, SEED_VENDORS, PRODUCT_LINES,
+  SEED_SIZES, lineFor,
 } from '../app/store/print-costs.js';
 import { checkPrintMargin } from '../app/listing/validators.js';
 import { DEFAULT_SETTINGS as S } from '../app/store/settings.js';
@@ -23,10 +24,58 @@ test('landed cost adds the legs the vendor does not cover', () => {
   assert.equal(cost.total, 20 + 6 + 12 + 2.5);
 });
 
-test('a local lab saves the inbound leg', () => {
-  const cost = landedCost(row({ ship_each: 6 }), NATIONS, S);
+test('collecting in person saves the inbound leg', () => {
+  const collected = { ...CANVASCHAMP, fulfilment: 'local_pickup' };
+  const cost = landedCost(row({ ship_each: 6 }), collected, S);
   assert.equal(cost.inbound, 0, 'collected in person');
   assert.equal(cost.total, 20 + 0 + 12 + 2.5);
+});
+
+// Nations is local but offers no in-person collection, and their postage is
+// likely cheaper than Scott's, so they ship straight to the buyer.
+test('Nations drop-ships, so Scott posts nothing', () => {
+  assert.equal(NATIONS.fulfilment, 'dropship');
+  const cost = landedCost(row({ unit_cost: 34, ship_each: 8 }), NATIONS, S);
+  assert.equal(cost.outbound, 0);
+  assert.equal(cost.packaging, 0);
+  assert.equal(cost.total, 42, 'the lab\u2019s own shipping charge is the only postage');
+});
+
+// --- finishing ------------------------------------------------------------
+
+test('CanvasChamp quotes a finished piece; Nations quotes a bare print', () => {
+  const cc = PRODUCT_LINES.filter((l) => l.vendor === 'CanvasChamp');
+  assert.ok(cc.every((l) => l.finishing === null), 'nothing to add');
+  assert.ok(cc.every((l) => l.includes.includes('hanging hardware')));
+
+  const npl = PRODUCT_LINES.filter((l) => l.vendor === 'Nations Photo Lab');
+  assert.ok(npl.every((l) => l.finishing?.pct === 0.5));
+  assert.ok(npl.every((l) => l.includes.length === 0));
+});
+
+test('mounting is half the base print price', () => {
+  assert.equal(finishingCost({ mounted: true, unit_cost: 34, finishing_pct: 0.5 }), 17);
+  assert.equal(finishingCost({ mounted: true, unit_cost: 79, finishing_pct: 0.5 }), 39.5);
+});
+
+test('a flat mounting figure overrides the percentage', () => {
+  assert.equal(finishingCost({ mounted: true, unit_cost: 34, finishing_pct: 0.5, finishing_cost: 12 }), 12);
+});
+
+test('nothing is added when the print is sold unmounted', () => {
+  assert.equal(finishingCost({ mounted: false, unit_cost: 34, finishing_pct: 0.5 }), 0);
+  assert.equal(finishingCost({ unit_cost: 34 }), 0);
+  assert.equal(finishingCost(null), 0);
+});
+
+test('mounting lands in the total, not beside it', () => {
+  const bare = landedCost(row({ unit_cost: 34, ship_each: 8 }), NATIONS, S);
+  const mounted = landedCost(
+    row({ unit_cost: 34, ship_each: 8, mounted: true, finishing_pct: 0.5 }), NATIONS, S,
+  );
+  assert.equal(mounted.finishing, 17);
+  assert.equal(mounted.total, bare.total + 17);
+  assert.ok(priceForMargin(mounted, S, 0.55) > priceForMargin(bare, S, 0.55));
 });
 
 test('a drop-shipping lab means no postage and no packaging of your own', () => {
@@ -108,15 +157,36 @@ test('a variant finds the cost row for its own lab and substrate first', () => {
   assert.equal(costForVariant({ label: 'from' }, listing, rows), null);
 });
 
-test('comparing labs sorts cheapest first', () => {
+// The honest comparison is ready-to-hang against ready-to-hang: a $20
+// CanvasChamp canvas arrives with hardware on it, a $34 Nations giclée is a
+// bare sheet until $17 of foamcore is added.
+test('comparing labs sorts cheapest first, mounting included', () => {
   const rows = [
-    row({ vendor: 'Nations Photo Lab', substrate: 'paper', process: 'giclee', unit_cost: 34, ship_each: 0 }),
+    row({
+      vendor: 'Nations Photo Lab', substrate: 'paper', process: 'giclee',
+      unit_cost: 34, ship_each: 8, mounted: true, finishing_pct: 0.5,
+    }),
     row({ vendor: 'CanvasChamp', substrate: 'canvas', process: 'digital', unit_cost: 20, ship_each: 6 }),
   ];
   const options = compareVendors(rows, SEED_VENDORS, S, { width_in: 16, height_in: 20 });
   assert.equal(options.length, 2);
-  assert.equal(options[0].row.vendor, 'CanvasChamp');
+  assert.equal(options[0].row.vendor, 'CanvasChamp', '$40.50 landed');
+  assert.equal(options[1].row.vendor, 'Nations Photo Lab', '$59.00 landed');
   assert.ok(options[1].target > options[0].target, 'giclée costs the buyer more');
+});
+
+test('a comparison row says whether it is ready to hang and whether the lab is checked', () => {
+  const rows = [row({ vendor: 'CanvasChamp', unit_cost: 20, ship_each: 6 })];
+  const [option] = compareVendors(rows, SEED_VENDORS, S, { width_in: 16, height_in: 20 });
+  assert.equal(option.readyToHang, true);
+  assert.equal(option.qualityChecked, false, 'neither lab has been proofed yet');
+});
+
+test('an unmounted Nations print is not ready to hang', () => {
+  const bare = row({
+    vendor: 'Nations Photo Lab', unit_cost: 34, mounted: false, finishing_pct: 0.5,
+  });
+  assert.equal(landedCost(bare, NATIONS, S).readyToHang, false);
 });
 
 test('a lab with no price quoted is left out of the comparison', () => {
@@ -125,6 +195,35 @@ test('a lab with no price quoted is left out of the comparison', () => {
 });
 
 // --- the template ---------------------------------------------------------
+
+test('the template carries each line\u2019s finishing rule', () => {
+  const rows = buildTemplate();
+  for (const row of rows) {
+    const line = lineFor(row.line);
+    assert.equal(row.finishing_pct, line.finishing?.pct ?? null, row.id);
+    assert.equal(row.mounted, !!line.finishing, row.id);
+    assert.equal(row.finishing_cost, null, 'no mounting figure is invented either');
+  }
+});
+
+test('CSV carries the mounting columns', () => {
+  assert.ok(CSV_COLUMNS.includes('finishing_cost'));
+  assert.ok(CSV_COLUMNS.includes('mounted'));
+  const rows = buildTemplate();
+  const target = rows.find((r) => r.line === 'npl-paper');
+  const result = applyCSV(`id,unit_cost,finishing_cost,mounted\n${target.id},34,15,yes`, rows);
+  assert.equal(result.updated[0].finishing_cost, 15);
+  assert.equal(result.updated[0].mounted, true);
+});
+
+test('mounted reads the words a spreadsheet actually produces', () => {
+  const rows = buildTemplate();
+  const target = rows.find((r) => r.line === 'npl-paper');
+  for (const [text, expected] of [['yes', true], ['TRUE', true], ['1', true], ['no', false], ['FALSE', false]]) {
+    const result = applyCSV(`id,mounted\n${target.id},${text}`, rows.map((r) => ({ ...r, mounted: null })));
+    assert.equal(result.updated[0].mounted, expected, text);
+  }
+});
 
 test('the template covers every line and size, and starts blank', () => {
   const rows = buildTemplate();

@@ -103,8 +103,9 @@ async function boot() {
   }
 
   // The print-cost template lays itself down once and tops up on later builds.
-  const { seedPrintCosts } = await import('./store/print-costs.js');
+  const { seedPrintCosts, migratePrintCosts } = await import('./store/print-costs.js');
   await seedPrintCosts();
+  await migratePrintCosts();
 
   const seeded = await seedIfEmpty();
   if (seeded.seeded) {

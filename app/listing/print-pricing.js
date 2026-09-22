@@ -25,6 +25,25 @@ export const FULFILMENT_LABELS = {
 };
 
 /**
+ * What it costs to turn a quoted print into something ready to hang.
+ *
+ * The two labs quote different products: CanvasChamp's price already includes
+ * proofing and hanging hardware, while Nations quotes a bare print and mounts
+ * it on 3/16 in foamcore for roughly half the base price again. Comparing
+ * their headline numbers without this is comparing a finished piece against a
+ * sheet of paper.
+ */
+export function finishingCost(costRow) {
+  if (!costRow?.mounted) return 0;
+  const flat = Number(costRow.finishing_cost);
+  if (Number.isFinite(flat) && flat > 0) return round(flat);
+  const pct = Number(costRow.finishing_pct);
+  const unit = Number(costRow.unit_cost);
+  if (!Number.isFinite(pct) || !Number.isFinite(unit)) return 0;
+  return round(unit * pct);
+}
+
+/**
  * Everything one print costs Scott before Etsy takes anything.
  * Returns null when the vendor cost is unknown — a margin built on a guess is
  * worse than no margin.
@@ -39,13 +58,16 @@ export function landedCost(costRow, vendor, settings) {
   const posts = fulfilment !== 'dropship';
   const outbound = posts ? Number(s.print_shipping_estimate) || 0 : 0;
   const packaging = posts ? Number(s.packaging_cost) || 0 : 0;
+  const finishing = finishingCost(costRow);
 
   return {
     unit,
+    finishing,
     inbound,
     outbound,
     packaging,
-    total: round(unit + inbound + outbound + packaging),
+    readyToHang: finishing > 0 || !costRow?.finishing_pct,
+    total: round(unit + finishing + inbound + outbound + packaging),
   };
 }
 
@@ -134,6 +156,10 @@ export function compareVendors(costRows, vendors, settings, { width_in, height_i
         cost,
         breakEven: breakEven(cost, s),
         target: priceForMargin(cost, s, Number(s.target_print_margin)),
+        // A bare print and a mounted one are not the same product, and neither
+        // is an unverified lab. Both belong next to the number.
+        readyToHang: cost.readyToHang,
+        qualityChecked: !!vendor?.quality_checked_on,
       };
     })
     .sort((a, b) => a.cost.total - b.cost.total);
