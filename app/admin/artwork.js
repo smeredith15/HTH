@@ -110,8 +110,7 @@ function detail(artwork, settings, reload) {
 
     section('Print master', [
       row('Exists', artwork.print_master?.exists ? 'Yes' : 'No'),
-      row('Where the file is', artwork.print_master?.location
-        || '— not recorded. The app never holds the full-resolution file; this is where you say what you did with it.'),
+      row('Where the file is', masterLocation(artwork.print_master?.location)),
       row('Pixels', artwork.print_master?.long_edge_px
         ? `${artwork.print_master.long_edge_px} × ${artwork.print_master.short_edge_px ?? '?'}` : '—'),
       row('Max print size', limits
@@ -155,6 +154,21 @@ function photographPrompt(artwork, reload) {
     el('div', { class: 'row' },
       el('button', { class: 'btn ghost small', type: 'button', onClick: () => snooze(7) }, 'Snooze a week'),
       el('button', { class: 'btn ghost small', type: 'button', onClick: () => snooze(30) }, 'Snooze a month')));
+}
+
+/**
+ * The master lives outside this app — on a drive or in cloud storage. When the
+ * location is a link, make it one: pasting a Drive or Dropbox URL here should
+ * get you to the file in one tap, not in a copy and paste.
+ */
+function masterLocation(location) {
+  const text = (location ?? '').trim();
+  if (!text) {
+    return el('span', { class: 'muted' },
+      'Not recorded. The app never holds the full-resolution file — this is where you say what you did with it.');
+  }
+  if (!/^https?:\/\//i.test(text)) return el('span', { text });
+  return el('a', { href: text, target: '_blank', rel: 'noopener noreferrer', text: 'Open the master ↗' });
 }
 
 function floorLine(artwork, settings) {
