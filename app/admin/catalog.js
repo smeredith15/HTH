@@ -14,43 +14,62 @@ const state = { filters: { ...BLANK_FILTERS }, sort: 'updated', view: 'grid' };
 
 const RIGHTS_TONE = { yes: 'ok', ask_first: 'warn', no: 'bad', unknown: 'muted' };
 
+/**
+ * The search box and the filters are built once and left alone. Only the
+ * results are redrawn — rebuilding the whole view on every keystroke destroyed
+ * the input being typed into, which is why search accepted one letter at a
+ * time.
+ */
 export async function renderCatalog(host, { query } = {}) {
   if (query?.get('q')) state.filters.q = query.get('q');
   const all = await listArtworks();
-  const draw = () => {
+
+  const count = el('p', { class: 'muted' });
+  const results = el('div');
+  const viewButton = el('button', {
+    class: 'btn ghost', type: 'button',
+    onClick: () => { state.view = state.view === 'grid' ? 'list' : 'grid'; redraw(); },
+  });
+
+  const redraw = () => {
     const shown = filterArtworks(all, state.filters, state.sort);
-    mount(host,
-      header(all, shown, draw),
-      filterBar(all, draw),
-      shown.length
-        ? (state.view === 'grid' ? grid(shown) : table(shown))
-        : el('p', { class: 'empty' }, 'Nothing matches those filters.'));
+    count.textContent = `${shown.length} of ${all.length} pieces`;
+    viewButton.textContent = state.view === 'grid' ? 'List view' : 'Grid view';
+    viewButton.setAttribute('aria-pressed', String(state.view === 'list'));
+    mount(results, shown.length
+      ? (state.view === 'grid' ? grid(shown) : table(shown))
+      : el('p', { class: 'empty' }, 'Nothing matches those filters.'));
   };
-  draw();
+
+  mount(host,
+    el('div', { class: 'view-head' },
+      el('div', null, el('h1', null, 'Catalog'), count),
+      el('div', { class: 'row' },
+        viewButton,
+        el('button', { class: 'btn primary', type: 'button', onClick: () => promptQuickAdd() }, '+ Quick add'))),
+    filterBar(all, redraw),
+    results);
+
+  redraw();
 }
 
-function header(all, shown, draw) {
-  return el('div', { class: 'view-head' },
-    el('div', null,
-      el('h1', null, 'Catalog'),
-      el('p', { class: 'muted', text: `${shown.length} of ${all.length} pieces` })),
-    el('div', { class: 'row' },
-      el('button', {
-        class: 'btn ghost', type: 'button',
-        'aria-pressed': String(state.view === 'list'),
-        onClick: () => { state.view = state.view === 'grid' ? 'list' : 'grid'; draw(); },
-      }, state.view === 'grid' ? 'List view' : 'Grid view'),
-      el('button', { class: 'btn primary', type: 'button', onClick: () => promptQuickAdd() }, '+ Quick add')));
-}
-
-function filterBar(all, draw) {
-  const set = (key) => (event) => { state.filters[key] = event.target.value; draw(); };
+function filterBar(all, redraw) {
   const opt = (values, blank) => [['', blank], ...values.map((v) => [v, label(v)])];
+  // Kept so "Clear filters" can reset the controls as well as the state —
+  // nothing is rebuilt any more, so the controls do not reset themselves.
+  const controls = [];
+
+  const set = (key) => (event) => { state.filters[key] = event.target.value; redraw(); };
+  const picker = (key, options) => {
+    const node = select(options, state.filters[key], { onChange: set(key) });
+    controls.push({ node, key });
+    return node;
+  };
 
   const search = el('input', {
     type: 'search', class: 'search', placeholder: 'Search title, subject, place, notes',
     value: state.filters.q, autocomplete: 'off',
-    onInput: (e) => { state.filters.q = e.target.value; draw(); },
+    onInput: (e) => { state.filters.q = e.target.value; redraw(); },
   });
 
   const active = Object.entries(state.filters).filter(([, v]) => v).length;
@@ -60,23 +79,28 @@ function filterBar(all, draw) {
     el('details', { class: 'filter-drawer', open: active > (state.filters.q ? 1 : 0) },
       el('summary', null, `Filters${active ? ` (${active})` : ''}`),
       el('div', { class: 'filter-grid' },
-        wrap('Status', select(opt(ARTWORK_STATUS, 'Any status'), state.filters.status, { onChange: set('status') })),
-        wrap('Disposition', select(opt(DISPOSITION, 'Any disposition'), state.filters.disposition, { onChange: set('disposition') })),
-        wrap('Category', select(opt(CATEGORY, 'Any category'), state.filters.category, { onChange: set('category') })),
-        wrap('Series', select(opt(seriesIn(all), 'Any series'), state.filters.series, { onChange: set('series') })),
-        wrap('On hand', select([['', 'Either'], ['yes', 'On hand'], ['no', 'Not on hand']], state.filters.on_hand, { onChange: set('on_hand') })),
-        wrap('Colour', select([['', 'Either'], ['color', 'Colour'], ['mono', 'Monochrome']], state.filters.color, { onChange: set('color') })),
-        wrap('Faces', select([['', 'Either'], ['yes', 'Has a face'], ['no', 'No face']], state.filters.has_face, { onChange: set('has_face') })),
-        wrap('OK to list', select([['', 'Any'], ['yes', 'Yes'], ['ask_first', 'Ask first'], ['no', 'No'], ['unknown', 'Unknown']], state.filters.listing_ok, { onChange: set('listing_ok') })),
-        wrap('Print master', select([['', 'Either'], ['yes', 'Has a master'], ['no', 'No master']], state.filters.print_master, { onChange: set('print_master') })),
-        wrap('Visibility', select(opt(VISIBILITY, 'Any'), state.filters.visibility, { onChange: set('visibility') })),
+        wrap('Status', picker('status', opt(ARTWORK_STATUS, 'Any status'))),
+        wrap('Disposition', picker('disposition', opt(DISPOSITION, 'Any disposition'))),
+        wrap('Category', picker('category', opt(CATEGORY, 'Any category'))),
+        wrap('Series', picker('series', opt(seriesIn(all), 'Any series'))),
+        wrap('On hand', picker('on_hand', [['', 'Either'], ['yes', 'On hand'], ['no', 'Not on hand']])),
+        wrap('Colour', picker('color', [['', 'Either'], ['color', 'Colour'], ['mono', 'Monochrome']])),
+        wrap('Faces', picker('has_face', [['', 'Either'], ['yes', 'Has a face'], ['no', 'No face']])),
+        wrap('OK to list', picker('listing_ok', [['', 'Any'], ['yes', 'Yes'], ['ask_first', 'Ask first'], ['no', 'No'], ['unknown', 'Unknown']])),
+        wrap('Print master', picker('print_master', [['', 'Either'], ['yes', 'Has a master'], ['no', 'No master']])),
+        wrap('Visibility', picker('visibility', opt(VISIBILITY, 'Any'))),
         wrap('Sort', select(Object.entries(SORTS).map(([k, v]) => [k, v.label]), state.sort, {
-          onChange: (e) => { state.sort = e.target.value; draw(); },
+          onChange: (e) => { state.sort = e.target.value; redraw(); },
         })),
         el('div', { class: 'field end' },
           el('button', {
             class: 'btn ghost', type: 'button',
-            onClick: () => { Object.assign(state.filters, BLANK_FILTERS); draw(); },
+            onClick: () => {
+              Object.assign(state.filters, BLANK_FILTERS);
+              search.value = '';
+              for (const { node } of controls) node.value = '';
+              redraw();
+            },
           }, 'Clear filters')))));
 }
 
@@ -150,13 +174,20 @@ export function promptQuickAdd() {
       event.preventDefault();
       const title = input.value.trim();
       if (!title) return;
-      const artwork = await quickAdd(title);
+      const { artwork, filled } = await quickAdd(title);
       dialog.close();
-      toast(`Added “${artwork.title}”`, 'ok');
+      // Say what was filled in, so nothing arrives in the record unannounced.
+      const named = Object.keys(filled)
+        .filter((k) => k !== 'subject_name' && filled[k] !== null && filled[k] !== undefined)
+        .map((k) => label(k).toLowerCase());
+      toast(named.length
+        ? `Added “${artwork.title}”. Filled in ${named.join(', ')} — change any of it.`
+        : `Added “${artwork.title}”`, 'ok');
       navigate(`/artwork/${artwork.id}/edit`);
     } },
     el('h2', null, 'Quick add'),
-    el('p', { class: 'hint' }, 'A title is all this needs. Everything else can wait.'),
+    el('p', { class: 'hint' }, 'A title is all this needs. The technique, and whatever substrate and '
+      + 'finish your last few pieces used, get filled in — size, price and hours never are.'),
     input,
     el('div', { class: 'row end' },
       el('button', { class: 'btn ghost', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
