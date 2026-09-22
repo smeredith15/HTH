@@ -10,6 +10,7 @@ import { renderArtwork, renderArtworkEdit } from './admin/artwork.js';
 import { renderListings } from './admin/listings.js';
 import { renderListingEditor } from './admin/listing-editor.js';
 import { renderPrintCosts } from './admin/print-costs.js';
+import { renderHelp } from './admin/help.js';
 import { renderBackup } from './admin/backup-view.js';
 import { renderSettings } from './admin/settings-view.js';
 
@@ -85,6 +86,7 @@ route('/listings', withChrome(renderListings));
 route('/listing/:id', withChrome(renderListingEditor));
 route('/print-costs', withChrome(renderPrintCosts));
 route('/backup', withChrome(renderBackup));
+route('/help', withChrome(renderHelp));
 route('/settings', withChrome(renderSettings));
 setNotFound(withChrome(async (host, { path }) => mount(host,
   el('div', { class: 'empty' },

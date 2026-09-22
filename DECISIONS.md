@@ -265,6 +265,37 @@ say.
 
 Whether CanvasChamp will drop-ship is unasked, and worth about $14.50 a print.
 
+## The guide lives in the app
+
+A README on github.com is not where anyone looks while standing in a studio
+holding a phone. `#/help` answers what the app is, where photographs actually
+live, what each of the six sections is for, step-by-step for the five usual
+jobs, the one thing that can lose the data, and what has not been built yet.
+
+It leads with the photograph question, because that turned out to be the thing
+that was genuinely unclear: the app holds pictures you can open, and separately
+records where the printable original is.
+
+## Photographs can be looked at, not just counted
+
+A 64 px thumbnail is enough to recognise a photo and not enough to judge one,
+so the record was effectively write-only. Tapping a thumbnail now opens the
+2,000 px web copy, says what the app holds (`2000 × 1500 px · 142 KB`), what the
+original was (`4000 × 3000 px`), where the full-resolution master lives and what
+it prints to — and offers the copy as a download.
+
+## There is no build step, so imports are checked by a test
+
+`label` lives in `ui/dom.js`, not `store/schema.js`. Importing it from the wrong
+module broke the whole artwork screen, and nothing caught it until a browser
+reached that line — a view three taps in could have stayed broken for days.
+
+`tests/imports.test.js` walks every module, resolves each relative import, and
+asserts the named import exists in the target. It also flags names imported and
+never used, which found two dead imports on its first run. It understands
+`as` aliases: the module has to export the left-hand name, the file has to use
+the right-hand one.
+
 ## Phase 3 — images
 
 ### The long edge gives way before the quality does

@@ -6,7 +6,7 @@
 import { el, mount, money, label, field, select, pill, toast, confirmDialog } from '../ui/dom.js';
 import {
   listPrintCosts, listPrintVendors, savePrintCost, savePrintVendor, deletePrintCost,
-  addPrintCostRow, PRODUCT_LINES, toCSV, applyCSV, lineFor,
+  addPrintCostRow, PRODUCT_LINES, toCSV, applyCSV,
 } from '../store/print-costs.js';
 import { putMany, loadSettings, saveSettings } from '../store/db.js';
 import {
