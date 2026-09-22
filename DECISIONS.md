@@ -534,6 +534,33 @@ That is what makes an old export able to restore a piece whose pixels a
 collision overwrote, and it is applied on import and on sync pull alike.
 `tests/images.test.js` now asserts that no key any catalog could produce repeats.
 
+### The service worker is network-first, and that is not the usual advice
+
+Cache-first is what almost every app-shell guide recommends, and it is wrong
+for this app. It ships several times a day and the update ritual is "merge,
+then refresh". A cache-first worker answers that refresh with the previous
+deploy and looks like it worked — so a fix that shipped appears not to have,
+and every diagnosis after that is built on a false premise. Offline costs one
+3.5-second timeout; a silent stale deploy costs an evening.
+
+`cache: 'no-store'` on the network attempt is part of that, not a detail.
+`fetch(request)` inside a worker still consults the browser's HTTP cache, and
+GitHub Pages serves this repo without `Cache-Control`, so heuristic freshness
+hands back the copy the browser already had. Measured: a changed module did not
+arrive until the option was added. Without it, "network-first" is a comment.
+
+### Unregistering the worker also has to switch it off
+
+The first version of the escape hatch unregistered the worker and cleared the
+caches, then reloaded — and boot registered it again immediately, so the button
+handed back exactly what it had been asked to remove. Caught in a browser test
+that asserted the registration count afterwards.
+
+A per-device flag in `localStorage` now survives the reload, and Settings grows
+a "Turn offline mode back on". `localStorage` is right here: it is a preference
+about this browser on this device, it must outlive the reload, and it is not
+data worth syncing.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text

@@ -1,6 +1,6 @@
 // Settings (SPEC §5.10).
 
-import { el, mount, field, toast, label } from '../ui/dom.js';
+import { el, mount, field, toast, label, confirmDialog } from '../ui/dom.js';
 import { loadSettings, saveSettings } from '../store/db.js';
 import { DEFAULT_SETTINGS, feeRate } from '../store/settings.js';
 import { SEED_TEMPLATES, placeholdersIn } from '../listing/templates.js';
@@ -149,6 +149,8 @@ export async function renderSettings(host) {
         },
       }), 'Used by the budgeting screens in Phase 6.')),
 
+    offlinePanel(),
+
     el('div', { class: 'row end sticky-save' },
       el('button', { class: 'btn ghost', type: 'button', onClick: async () => {
         await saveSettings({ ...DEFAULT_SETTINGS, last_exported_at: draft.last_exported_at });
@@ -156,4 +158,103 @@ export async function renderSettings(host) {
         location.reload();
       } }, 'Reset to defaults'),
       el('button', { class: 'btn primary', type: 'submit' }, 'Save'))));
+}
+
+
+/**
+ * Installing the app, and getting out of it again.
+ *
+ * The escape hatch is the point. A service worker that misbehaves is normally
+ * fixed from developer tools, which nobody has on the phone they are standing
+ * in a studio with — so unregistering it and clearing every cache has to be a
+ * button on a screen.
+ */
+function offlinePanel() {
+  const host = el('section', { class: 'panel' });
+  const state = el('p', { class: 'hint', text: 'Checking\u2026' });
+  const actions = el('div', { class: 'row' });
+
+  const refresh = async () => {
+    const { status, SUPPORTED } = await import('../offline.js');
+    if (!SUPPORTED) {
+      state.textContent = 'This browser does not support offline mode.';
+      mount(actions);
+      return;
+    }
+    const s = await status();
+    if (s.disabled) {
+      state.className = 'hint warn-text';
+      state.textContent = 'Switched off on this device. The app still works, but it needs a network to load it.';
+      mount(actions, turnOnButton());
+      return;
+    }
+    state.className = 'hint';
+    state.textContent = s.installed
+      ? `Installed${s.version ? ` (${s.version})` : ''}. The app opens and works with no signal; `
+        + 'photographs and records were always on this device anyway.'
+      : 'Not installed yet. Reload once and it will register itself.';
+    mount(actions, checkButton(refresh), forgetButton());
+  };
+
+  mount(host,
+    el('h2', null, 'Offline'),
+    state,
+    el('p', { class: 'hint' },
+      'On a phone, use the browser\u2019s Add to Home Screen to get an icon and a full screen. '
+      + 'Updates still arrive the moment you reload while online \u2014 the cache is only ever used '
+      + 'when the network does not answer.'),
+    actions);
+
+  refresh().catch(() => { state.textContent = 'Could not read the offline state.'; });
+  return host;
+}
+
+function checkButton(refresh) {
+  return el('button', {
+    class: 'btn ghost', type: 'button',
+    onClick: async () => {
+      const { checkForUpdate } = await import('../offline.js');
+      const result = await checkForUpdate();
+      toast(result.checked ? 'Checked for an update.' : 'Nothing installed to update.', 'ok');
+      await refresh();
+    },
+  }, 'Check for an update');
+}
+
+/**
+ * The way out. Unregistering alone is not enough — boot would reinstall the
+ * worker on the very next load, handing back exactly what was just removed —
+ * so this also sets a per-device off switch that survives the reload.
+ */
+function forgetButton() {
+  return el('button', {
+    class: 'btn danger ghost', type: 'button',
+    onClick: async () => {
+      const ok = await confirmDialog(
+        'Switch offline mode off and delete its cache?\n\n'
+        + 'This is the way out if the app ever stops picking up updates. It stays off until you '
+        + 'turn it back on here.\n\n'
+        + 'Nothing in your catalog is touched: photographs, records and the sync token live in a '
+        + 'different store that this cannot reach. The page will reload.',
+        { confirmText: 'Switch off and reload' },
+      );
+      if (!ok) return;
+      const { forgetWorker } = await import('../offline.js');
+      const { cleared } = await forgetWorker();
+      toast(`Cleared ${cleared} cache${cleared === 1 ? '' : 's'}. Reloading\u2026`);
+      setTimeout(() => location.reload(), 600);
+    },
+  }, 'Switch off and clear the cache');
+}
+
+function turnOnButton() {
+  return el('button', {
+    class: 'btn primary', type: 'button',
+    onClick: async () => {
+      const { enableWorker } = await import('../offline.js');
+      await enableWorker();
+      toast('Offline mode back on. Reloading\u2026', 'ok');
+      setTimeout(() => location.reload(), 600);
+    },
+  }, 'Turn offline mode back on');
 }

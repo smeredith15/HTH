@@ -97,10 +97,18 @@ a { color: var(--pine); }
 }
 
 /* Char cut back to pale wood — the process, in 18 pixels. */
+/* The shop's mark: a diver in a swan dive, seen head on. A 64 px file for a
+   22 px slot, because the linework is fine enough that a smaller source turns
+   to mush on a retina screen. */
 .wordmark-mark {
-  width: 18px; height: 18px; border-radius: 3px;
-  background: linear-gradient(135deg, var(--char-900) 0 45%, var(--pine) 45% 60%, var(--char-900) 60% 100%);
-  box-shadow: inset 0 0 0 1px var(--slate-500);
+  width: 22px; height: 22px; border-radius: 50%;
+  /* Cropped past the dark ring, which at 22 px eats most of the mark. 124%,
+     not more: the arms are the silhouette, and their fingertips reach 74% of
+     the way to the frame edge — measured radially, because border-radius
+     clips to a circle and the arms sweep out *and* down. 134% is where they
+     start being cut; this leaves them room to read as arms. */
+  background: url("../icons/logo-64.png") center / 124% no-repeat, var(--char-900);
+  flex: 0 0 auto;
 }
 
 .nav { display: flex; gap: 0.15rem; }
