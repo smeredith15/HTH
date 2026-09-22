@@ -6,7 +6,7 @@ import {
 } from '../app/images/resize.js';
 import {
   PHOTO_CHECKLIST, SHOOTING_GUIDE, checklistFor, checklistProgress, missingAltText,
-  nextImageId, webPathFor, thumbPathFor, unclaimedImages, blobId, normaliseBlobRows,
+  nextImageId, webPathFor, thumbPathFor, unclaimedImages, blobId, normaliseBlobRows, shotList,
 } from '../app/images/photos.js';
 import {
   newArtwork, slugify, photographBeforeItLeaves, snoozeUntil, printLimits,
@@ -337,4 +337,53 @@ test('an already-namespaced row is left alone, and a row with no artwork is unto
   assert.deepEqual(normaliseBlobRows([already]), [already]);
   const orphan = { id: 'straight_on-web' };
   assert.deepEqual(normaliseBlobRows([orphan]), [orphan]);
+});
+
+// --- the shot list ---------------------------------------------------------
+//
+// An evening of photographing wants one screen to work down, not sixty records
+// opened to find out which need what.
+
+const onHand = (id, images = []) => newArtwork({ id, title: id, status: 'finished', on_hand: true, images });
+
+test('only pieces still in the studio, and only ones with a shot missing', () => {
+  const list = shotList([
+    onHand('moose'),
+    newArtwork({ id: 'sold-one', title: 'sold-one', status: 'finished', on_hand: false }),
+    newArtwork({ id: 'an-idea', title: 'an-idea', status: 'idea', on_hand: true }),
+    onHand('done', [
+      { id: 'straight_on', role: 'straight_on' }, { id: 'detail_raking', role: 'detail_raking' },
+      { id: 'in_room', role: 'in_room' }, { id: 'scale', role: 'scale' },
+      { id: 'back_hardware', role: 'back_hardware' }, { id: 'signature', role: 'signature' },
+    ]),
+  ]);
+  assert.deepEqual(list.map((e) => e.artwork.id), ['moose'], 'a finished set drops off, and so does anything gone');
+});
+
+test('the piece needing most work comes first', () => {
+  const list = shotList([
+    onHand('nearly', [
+      { id: 'straight_on', role: 'straight_on' }, { id: 'detail_raking', role: 'detail_raking' },
+      { id: 'in_room', role: 'in_room' }, { id: 'scale', role: 'scale' },
+      { id: 'back_hardware', role: 'back_hardware' },
+    ]),
+    onHand('untouched'),
+  ]);
+  assert.deepEqual(list.map((e) => e.artwork.id), ['untouched', 'nearly']);
+  assert.deepEqual(list[0].missing.map((m) => m.role), [
+    'straight_on', 'detail_raking', 'in_room', 'scale', 'back_hardware', 'signature',
+  ]);
+  assert.deepEqual(list[1].missing.map((m) => m.role), ['signature']);
+  assert.equal(list[1].progress.done, 5);
+});
+
+// The process shot is explicitly never required (§2.1), so it must never be
+// the reason a piece stays on a list of work to do.
+test('a missing process shot does not put a piece on the list', () => {
+  const list = shotList([onHand('done-but-no-process', [
+    { id: 'straight_on', role: 'straight_on' }, { id: 'detail_raking', role: 'detail_raking' },
+    { id: 'in_room', role: 'in_room' }, { id: 'scale', role: 'scale' },
+    { id: 'back_hardware', role: 'back_hardware' }, { id: 'signature', role: 'signature' },
+  ])]);
+  assert.deepEqual(list, []);
 });

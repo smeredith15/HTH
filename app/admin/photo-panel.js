@@ -111,7 +111,7 @@ function photoRow(artwork, row, onChange) {
       heading,
       el('p', { class: 'hint', text: row.why }),
       images.map((image) => imageBlock(artwork, image, row.label, onChange)),
-      el('label', { class: 'btn ghost small' }, 'Add another to this shot',
+      el('label', { class: 'btn ghost small' }, 'Add more to this shot',
         fileInput(artwork, row.role, onChange))));
 }
 
@@ -237,56 +237,107 @@ async function patchImage(artwork, imageId, patch, onChange) {
   await rerender(onChange);
 }
 
+/**
+ * Replacing takes one file. Adding takes as many as you select: a night of
+ * photographing is twenty files, and twenty trips through a file picker with a
+ * role dropdown each time is the friction that stops a catalog being finished.
+ */
 function fileInput(artwork, role, onChange, replaceId = null) {
   return el('input', {
     type: 'file', accept: 'image/*', capture: undefined, class: 'visually-hidden',
+    multiple: !replaceId,
     onChange: async (event) => {
-      const file = event.target.files?.[0];
+      const files = [...(event.target.files ?? [])];
       event.target.value = '';
-      if (!file) return;
-      await ingest(artwork, file, role, onChange, replaceId);
+      if (!files.length) return;
+      await ingest(artwork, files, role, onChange, replaceId);
     },
   });
 }
 
-async function ingest(artwork, file, role, onChange, replaceId) {
-  const busy = toast('Resizing…');
+/**
+ * Take one file or twenty. Each is resized and added in turn, carrying the
+ * growing record forward so `nextImageId` keeps handing out unique ids, and
+ * the whole batch is saved once — a save per file would rebuild the screen
+ * twenty times and push a sync commit for each.
+ */
+async function ingest(artwork, files, role, onChange, replaceId) {
+  const list = Array.isArray(files) ? files : [files];
   try {
     let base = artwork;
     if (replaceId) base = await removePhoto(artwork, replaceId);
-    const { image, processed } = await addPhoto(base, file, { role });
 
-    const next = { ...base, images: [...(base.images ?? []), image] };
+    const added = [];
+    const failed = [];
+    let webBytes = 0;
+    let oversize = 0;
+    let reduced = 0;
+    let lastWeb = null;
 
-    await saveArtwork(next);
-    const note = processed.web.reducedEdge
-      ? ` at ${processed.web.width} × ${processed.web.height} px — this one was too densely textured to fit 600 KB at 2,000 px`
-      : '';
-    toast(
-      `Added. Web copy ${readableBytes(processed.web.bytes)}${note}`
-      + (processed.web.withinBudget ? '' : ', still over the 600 KB target'),
-      processed.web.withinBudget ? 'ok' : 'warn',
-    );
-    onChange();
+    for (const [index, file] of list.entries()) {
+      toast(list.length > 1 ? `Resizing ${index + 1} of ${list.length}…` : 'Resizing…');
+      try {
+        const { image, processed } = await addPhoto(base, file, { role });
+        base = { ...base, images: [...(base.images ?? []), image] };
+        added.push(image);
+        lastWeb = processed.web;
+        webBytes += processed.web.bytes;
+        if (!processed.web.withinBudget) oversize += 1;
+        if (processed.web.reducedEdge) reduced += 1;
+      } catch (err) {
+        // One unreadable file must not lose the nineteen that worked.
+        console.error(err);
+        failed.push(`${file.name ?? 'a file'}: ${err.message}`);
+      }
+    }
+
+    if (added.length) await saveArtwork(base);
+    toast(...report({ list, added, failed, webBytes, oversize, reduced, lastWeb }));
+    if (added.length) onChange();
   } catch (err) {
     console.error(err);
     toast(err.message, 'warn');
   }
 }
 
+/** What to say afterwards: the counts that matter, and nothing else. */
+function report({ list, added, failed, webBytes, oversize, reduced, lastWeb }) {
+  if (!added.length) return [failed[0] ?? 'Nothing was added.', 'warn'];
+  const tone = oversize ? 'warn' : 'ok';
+
+  if (added.length === 1) {
+    const note = lastWeb?.reducedEdge
+      ? ` at ${lastWeb.width} × ${lastWeb.height} px — this one was too densely textured to fit 600 KB at 2,000 px`
+      : '';
+    const over = lastWeb?.withinBudget === false ? ', still over the 600 KB target' : '';
+    const line = `Added. Web copy ${readableBytes(webBytes)}${note}${over}`;
+    return failed.length ? [`${line} ${failed[0]}`, 'warn'] : [line, tone];
+  }
+
+  const extra = [
+    reduced ? `${reduced} came down below 2,000 px` : null,
+    oversize ? `${oversize} still over the 600 KB target` : null,
+  ].filter(Boolean).join(', ');
+  const line = `Added ${added.length} photos, ${readableBytes(webBytes)} in all${extra ? ` — ${extra}` : ''}.`;
+  return failed.length
+    ? [`Added ${added.length} of ${list.length}. ${failed[0]}`, 'warn']
+    : [line, tone];
+}
+
 /**
- * One photo at a time, and it lands as `other` until it is given a role, so a
- * photo added from here never quietly claims the straight-on slot. The
- * checklist rows are the faster path — they pick the role for you.
+ * Everything added here lands as `other` until it is given a role, so a bulk
+ * drop never quietly claims the straight-on slot. The checklist rows are still
+ * the faster path when you know what a shot is — they set the role, and they
+ * take several files too.
  */
 function addButton(artwork, onChange) {
-  return el('label', { class: 'btn primary' }, 'Add a photo',
+  return el('label', { class: 'btn primary' }, 'Add photos',
     el('input', {
-      type: 'file', accept: 'image/*', class: 'visually-hidden',
+      type: 'file', accept: 'image/*', class: 'visually-hidden', multiple: true,
       onChange: async (event) => {
-        const file = event.target.files?.[0];
+        const files = [...(event.target.files ?? [])];
         event.target.value = '';
-        if (file) await ingest(artwork, file, 'other', onChange, null);
+        if (files.length) await ingest(artwork, files, 'other', onChange, null);
       },
     }));
 }

@@ -9,6 +9,7 @@ import { listPrintCosts } from '../store/print-costs.js';
 import { exportAge } from '../store/backup.js';
 import { effectiveRights, hasUsableMaster, isGone, photographBeforeItLeaves } from '../store/schema.js';
 import { promptQuickAdd } from './catalog.js';
+import { shotList } from '../images/photos.js';
 
 export async function renderHome(host) {
   const [artworks, listings, backlog, settings, estimate, printCosts] = await Promise.all([
@@ -30,6 +31,7 @@ export async function renderHome(host) {
   // A reminder snoozed on the artwork should be snoozed here too, or the
   // snooze is not a snooze.
   const needsPhoto = artworks.filter((a) => photographBeforeItLeaves(a)?.showing);
+  const shots = shotList(artworks);
   const withMaster = artworks.filter(hasUsableMaster);
 
   mount(host,
@@ -62,6 +64,23 @@ export async function renderHome(host) {
         el('h2', null, 'Photograph before they leave'),
         el('p', null, `${needsPhoto.length} on-hand ${needsPhoto.length === 1 ? 'piece has' : 'pieces have'} no straight-on photo.`),
         listOf(needsPhoto))
+      : null,
+
+    // The quieter list: pieces still in the studio with a shot outstanding.
+    // "Four of six" is as actionable as "none of six", and working down one
+    // screen beats opening sixty records to find out which need what.
+    shots.length
+      ? el('section', { class: 'panel' },
+        el('h2', null, 'Shot list'),
+        el('p', { class: 'hint' },
+          `${shots.length} piece${shots.length === 1 ? '' : 's'} still in the studio ${shots.length === 1 ? 'has' : 'have'} a shot outstanding. `
+          + 'Each row links straight to its photo panel, and any row there takes several files at once.'),
+        el('ul', { class: 'shot-list' }, shots.slice(0, 12).map(({ artwork, missing, progress }) =>
+          el('li', null,
+            el('a', { href: `#/artwork/${artwork.id}`, text: artwork.title }),
+            el('span', { class: 'muted small', text: `${progress.done} of ${progress.total}` }),
+            el('span', { class: 'shot-missing muted small', text: missing.map((m) => label(m.role)).join(', ') })))),
+        shots.length > 12 ? el('p', { class: 'muted', text: `…and ${shots.length - 12} more.` }) : null)
       : null,
 
     printCosts.length && !pricedSizes
