@@ -7,6 +7,7 @@ import {
   addPhoto, removePhoto, urlFor, readableBytes,
 } from '../images/photos.js';
 import { IMAGE_ROLE, QUALITY_FLAG, printLimits } from '../store/schema.js';
+import { suggestAlt } from '../store/autofill.js';
 import { openPhoto } from './photo-viewer.js';
 
 // Object URLs created for the thumbnails on screen, revoked when the panel is
@@ -100,6 +101,15 @@ function imageControls(artwork, image, onChange) {
 
   return el('div', { class: 'photo-controls' },
     field('Alt text', altInput, image.alt ? null : 'Required before this can be published.'),
+    image.alt ? null : el('button', {
+      class: 'btn ghost small', type: 'button',
+      onClick: async () => {
+        const draft = suggestAlt(artwork, image);
+        if (!draft) { toast('Give the piece a subject or a substrate first.', 'warn'); return; }
+        altInput.value = draft;
+        await patchImage(artwork, image.id, { alt: draft }, onChange);
+      },
+    }, 'Draft it from the record'),
     el('div', { class: 'two-up' },
       field('Role', select(IMAGE_ROLE.map((r) => [r, label(r)]), image.role, {
         onChange: async (e) => patchImage(artwork, image.id, { role: e.target.value }, onChange),

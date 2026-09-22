@@ -145,10 +145,23 @@ export async function renderListingEditor(host, { params }) {
       el('h2', null, 'Variants'),
       variantsTable(draft, refresh),
       pricePanel,
-      el('button', { class: 'btn ghost', type: 'button', onClick: () => {
-        draft.variants = [...(draft.variants ?? []), { label: '', width_in: null, height_in: null, shape: null, price: null }];
-        rerenderVariants(form, draft, refresh);
-      } }, '+ Add a size')),
+      el('div', { class: 'row' },
+        el('button', { class: 'btn ghost', type: 'button', onClick: () => {
+          draft.variants = [...(draft.variants ?? []), { label: '', width_in: null, height_in: null, shape: null, price: null }];
+          rerenderVariants(form, draft, refresh);
+        } }, '+ Add a size'),
+        draft.listing_type === 'print'
+          ? el('button', { class: 'btn ghost', type: 'button', onClick: () => {
+            const added = variantsFromCosts(draft, context, settings);
+            if (!added.length) {
+              toast('No sizes priced for this lab and substrate yet.', 'warn');
+              return;
+            }
+            draft.variants = added;
+            rerenderVariants(form, draft, refresh);
+            toast(`${added.length} sizes, priced at your target margin. Change any of them.`, 'ok');
+          } }, 'Build from my print costs')
+          : null)),
 
     el('section', { class: 'panel' },
       el('h2', null, 'Etsy'),
@@ -238,6 +251,34 @@ export async function renderListingEditor(host, { params }) {
 
   mount(host, form);
   refresh();
+}
+
+/**
+ * Every size already priced for this listing's lab and substrate, at the price
+ * that leaves the target margin. Sizes, not a guess — the costs are real.
+ */
+function variantsFromCosts(draft, { costRows, vendors }, settings) {
+  const byName = new Map(vendors.map((v) => [v.name, v]));
+  const existing = new Map((draft.variants ?? []).map((v) => [`${v.width_in}x${v.height_in}`, v]));
+
+  return costRows
+    .filter((row) => Number(row.unit_cost) > 0
+      && (!draft.print_substrate || row.substrate === draft.print_substrate)
+      && (!draft.print_vendor || row.vendor === draft.print_vendor))
+    .sort((a, b) => (a.width_in * a.height_in) - (b.width_in * b.height_in))
+    .map((row) => {
+      const guidance = priceGuidance(null, row, byName.get(row.vendor), settings);
+      const key = `${row.width_in}x${row.height_in}`;
+      const kept = existing.get(key);
+      return {
+        label: `${row.width_in} × ${row.height_in}`,
+        width_in: row.width_in,
+        height_in: row.height_in,
+        shape: row.width_in === row.height_in ? 'square' : 'rect',
+        // A price already set is left alone; this only fills the blanks.
+        price: kept?.price ?? (guidance.known ? guidance.target : null),
+      };
+    });
 }
 
 function rerender(form, host, params) {

@@ -293,6 +293,38 @@ that says nothing about photographs is not saying "delete them". Only a full
 export resets the "last exported" clock, because only a full export is a
 backup.
 
+## What gets filled in, and what never does
+
+One rule, from §1.1's worst bug — the moose that inherited the golf bag's
+dimensions because a listing was built by copying another one:
+
+> Fill in what is true of **how Scott works**. Never fill in what is true of
+> **this piece**.
+
+Technique is filled in because every piece is scorched then carved back into.
+Substrate, finish, hanging hardware and frame carry forward from the last six
+pieces, but only when at least 60% of them agree — three different substrates
+in a row is not a habit, so nothing is carried. A value identical to the blank
+default is not carried either, because "filled in framed" when nothing is
+framed is noise rather than help. Category and series are read from words in
+the title, using the vocabulary from Scott's own catalogue.
+
+`NEVER_GUESSED` is asserted by a test: dimensions, price, hours, materials,
+rights, print master, images, blurb, history and notes. Those are facts about
+one object, and a guess at any of them is the exact failure this app exists to
+prevent.
+
+Quick add says what it filled in, so nothing arrives in a record unannounced.
+
+Two more, both drawn from data rather than guessed:
+
+- **Alt text** drafts from subject, colours and substrate, worded for the
+  photo's role — "A close detail of Hooper Strait Lighthouse, scorched and
+  carved into pine." It never mentions a size or a price, which a test checks.
+- **Print variants** build from the sizes already priced for that lab and
+  substrate, at the price that leaves the target margin. Twelve sizes in one
+  tap, from real quotes. A price already set is left alone.
+
 ## Editing must not fight the person editing
 
 Every field on the print-cost screen saved by re-rendering the entire view —

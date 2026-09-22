@@ -1,6 +1,6 @@
 // The expense ledger — added at the owner's request; see DECISIONS.md.
 
-import { el, mount, money, label, dateOnly, field, select, toast, confirmDialog } from '../ui/dom.js';
+import { el, mount, money, label, dateOnly, field, select, toast, confirmDialog, rerender } from '../ui/dom.js';
 import {
   listExpenses, createExpense, saveExpense, deleteExpense,
   yearSummary, yearsPresent, yearOf,
@@ -15,7 +15,8 @@ export async function renderExpenses(host) {
   const [expenses, sales, artworks, settings] = await Promise.all([
     listExpenses(), listSales(), listArtworks(), loadSettings(),
   ]);
-  const reload = () => renderExpenses(host);
+  // Switching year rebuilds the table, so keep the reader's place.
+  const reload = () => rerender(() => renderExpenses(host));
   const years = yearsPresent(sales, expenses);
   const year = state.year ?? years[0] ?? String(new Date().getFullYear());
   const summary = yearSummary(sales, expenses, settings, year);

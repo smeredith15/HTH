@@ -62,6 +62,8 @@ export async function renderHelp(host) {
     section('Doing the usual things', [
       steps('Add a piece you just made', [
         'Catalog → Quick add. A title is all it needs.',
+        'The technique is set, and the substrate and finish your last few pieces used carry over. Category and series are read from the title.',
+        'Size, price, hours and rights are never guessed — those are facts about this piece, and a wrong guess is how the moose ended up with the golf bag’s dimensions.',
         'Fill in the rest whenever — the record shows you what is missing.',
       ]),
       steps('Photograph a piece', [

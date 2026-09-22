@@ -88,9 +88,20 @@ export async function createArtwork(patch = {}) {
   return saveArtwork(art);
 }
 
-/** §6.1 quick add: a title, and that's all it takes. */
-export function quickAdd(title) {
-  return createArtwork({ title, status: 'in_progress' });
+/**
+ * §6.1 quick add: a title, and that's all it takes.
+ *
+ * The record it creates is not empty, though. Technique, and whatever
+ * substrate and finish the last few pieces used, are filled in — those are
+ * facts about the workshop, not about this piece. Nothing that describes the
+ * object itself is guessed; see app/store/autofill.js.
+ */
+export async function quickAdd(title) {
+  const { defaultsForNew } = await import('./autofill.js');
+  const existing = await listArtworks();
+  const filled = defaultsForNew(title, existing);
+  const artwork = await createArtwork({ title, status: 'in_progress', ...filled });
+  return { artwork, filled };
 }
 
 /**
