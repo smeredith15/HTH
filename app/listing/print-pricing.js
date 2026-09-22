@@ -168,10 +168,14 @@ export function compareVendors(costRows, vendors, settings, { width_in, height_i
 /**
  * Look for lab prices that cannot both be right.
  *
- * A meaningfully larger print costing meaningfully less is either a promotion
- * that will expire or a typo, and both are worth knowing before a retail price
- * is built on top of one. The thresholds matter: a size ladder is lumpy, so a
- * 12 × 24 costing 49¢ more than a 16 × 20 is just granularity, not an error.
+ * A meaningfully larger print costing meaningfully less can be a promotion
+ * that will expire, a typo, or simply an uncommon size carrying a premium —
+ * which is what CanvasChamp's 18 × 36 turned out to be. All three are worth
+ * seeing once. None is worth being told about twice, so a row confirmed as
+ * correct stops reporting.
+ *
+ * The thresholds matter: a size ladder is lumpy, so a 12 × 24 costing 49¢ more
+ * than a 16 × 20 is granularity, not a finding.
  */
 const AREA_RATIO = 1.10;   // the larger print must be at least 10% bigger
 const PRICE_DROP = 0.10;   // and at least 10% cheaper
@@ -185,6 +189,8 @@ export function costAnomalies(rows) {
     byLine.get(row.line).push({ ...row, area: row.width_in * row.height_in });
   }
 
+  const confirmed = new Set(rows.filter((r) => r.cost_confirmed_on).map((r) => r.id));
+
   for (const [line, set] of byLine) {
     if (set.length < 3) continue;
     set.sort((a, b) => a.area - b.area);
@@ -194,13 +200,14 @@ export function costAnomalies(rows) {
         const bigger = set[j].area / set[i].area >= AREA_RATIO;
         const cheaper = (set[i].unit_cost - set[j].unit_cost) / set[i].unit_cost >= PRICE_DROP;
         if (bigger && cheaper) {
+          if (confirmed.has(set[i].id)) { j = set.length; continue; }
           out.push({
             line,
             id: set[i].id,
             kind: 'inverted',
             message: `${sizeLabel(set[i])} costs $${set[i].unit_cost.toFixed(2)} but the larger `
-              + `${sizeLabel(set[j])} is only $${set[j].unit_cost.toFixed(2)}. One of the two is a `
-              + 'promotion that will expire, or a typo.',
+              + `${sizeLabel(set[j])} is only $${set[j].unit_cost.toFixed(2)}. Uncommon sizes often `
+              + 'carry a premium, so this may be right — or it may be a sale that will expire.',
           });
           j = set.length;
         }
@@ -213,7 +220,7 @@ export function costAnomalies(rows) {
     const median = psi[Math.floor(psi.length / 2)];
     for (const row of set) {
       const ratio = (row.unit_cost / row.area) / median;
-      if (ratio > 3 || ratio < 0.34) {
+      if ((ratio > 3 || ratio < 0.34) && !confirmed.has(row.id)) {
         out.push({
           line,
           id: row.id,

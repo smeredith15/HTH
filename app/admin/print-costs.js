@@ -43,7 +43,7 @@ export async function renderPrintCosts(host) {
           onChange: (e) => { state.hideUnpriced = e.target.checked; renderPrintCosts(host); } }),
         el('span', null, 'Hide the sizes I have not priced'))),
 
-    anomalyPanel(rows),
+    anomalyPanel(rows, host),
 
     assumptionsPanel(settings, host),
 
@@ -54,13 +54,22 @@ export async function renderPrintCosts(host) {
     priced.length ? comparisonPanel(rows, vendors, settings) : null);
 }
 
-function anomalyPanel(rows) {
+function anomalyPanel(rows, host) {
   const anomalies = costAnomalies(rows);
   if (!anomalies.length) return null;
+  const byId = new Map(rows.map((r) => [r.id, r]));
   return el('section', { class: 'panel alert warn' },
     el('h2', null, 'Worth a second look'),
-    el('p', { class: 'hint' }, 'A bigger print costing less is usually a sale price. Build a retail price on one and it breaks when the sale ends.'),
-    el('ul', { class: 'link-list' }, anomalies.map((a) => el('li', { text: a.message }))));
+    el('p', { class: 'hint' }, 'Uncommon sizes often cost more than the standard size above them. If that is what this is, say so and it stops asking.'),
+    el('ul', { class: 'findings-list' }, anomalies.map((a) => el('li', null,
+      el('span', { text: a.message }),
+      el('button', {
+        class: 'btn ghost small', type: 'button',
+        onClick: async () => {
+          await savePrintCost({ ...byId.get(a.id), cost_confirmed_on: new Date().toISOString().slice(0, 10) });
+          renderPrintCosts(host);
+        },
+      }, 'That price is right')))));
 }
 
 function assumptionsPanel(settings, host) {

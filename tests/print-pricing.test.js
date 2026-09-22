@@ -229,7 +229,7 @@ test('a meaningfully larger print costing meaningfully less is flagged', () => {
   assert.equal(found.length, 1);
   assert.equal(found[0].kind, 'inverted');
   assert.match(found[0].message, /18 × 36/);
-  assert.match(found[0].message, /promotion|typo/);
+  assert.match(found[0].message, /premium|sale/);
 });
 
 test('a lumpy size ladder is not an anomaly', () => {
@@ -251,6 +251,27 @@ test('a misplaced decimal point is still caught', () => {
   const rows = line('cc-canvas', [[8, 10, 13.93], [12, 12, 17.27], [16, 20, 2227], [18, 24, 25.26]]);
   const found = costAnomalies(rows);
   assert.ok(found.some((a) => a.kind === 'outlier' && /decimal/.test(a.message)));
+});
+
+// Scott confirmed CanvasChamp's inversions are real: uncommon sizes carry a
+// premium. Being told twice about correct data is worse than not checking.
+test('a confirmed price stops being reported', () => {
+  const rows = line('cc-canvas', [[16, 20, 22.27], [18, 36, 47.55], [24, 36, 32.00]]);
+  assert.equal(costAnomalies(rows).length, 1);
+  const confirmed = rows.map((r) => (r.width_in === 18 ? { ...r, cost_confirmed_on: '2026-09-22' } : r));
+  assert.deepEqual(costAnomalies(confirmed), []);
+});
+
+test('confirming one row does not silence another', () => {
+  const rows = [
+    ...line('cc-canvas', [[16, 20, 22.27], [18, 36, 47.55], [24, 36, 32.00]]),
+    ...line('cc-wood', [[12, 16, 55.90], [12, 18, 48.97], [16, 20, 83.98]]),
+  ];
+  assert.equal(costAnomalies(rows).length, 2);
+  const one = rows.map((r) => (r.line === 'cc-canvas' && r.width_in === 18 ? { ...r, cost_confirmed_on: '2026-09-22' } : r));
+  const left = costAnomalies(one);
+  assert.equal(left.length, 1);
+  assert.equal(left[0].line, 'cc-wood');
 });
 
 test('one finding per row, and a short line is left alone', () => {

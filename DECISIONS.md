@@ -230,10 +230,16 @@ like-for-like against CanvasChamp canvas.
 ### Cost sanity checks
 
 Lab price ladders are lumpy, so the check only fires when a print at least 10%
-larger costs at least 10% less — an inversion that is either a sale or a typo.
-A loose per-square-inch guard catches a misplaced decimal point. Tighter
-thresholds flagged fourteen things on Scott's real data, almost all of them
-aspect-ratio granularity; these thresholds flag three, and all three are real.
+larger costs at least 10% less. A loose per-square-inch guard catches a
+misplaced decimal point. Tighter thresholds flagged fourteen things on Scott's
+real data, almost all of it aspect-ratio granularity; these flag three.
+
+All three turned out to be **correct**: CanvasChamp charges a premium on less
+common sizes, so an 18 × 36 really does cost more than a 24 × 36. Being told
+twice about correct data is worse than not checking at all, so each finding
+carries a "That price is right" button which records `cost_confirmed_on` and
+stops that row reporting. The check still watches every other row, and a
+confirmed row starts reporting again only if its price changes.
 
 ### CSV import creates sizes it has not seen
 
