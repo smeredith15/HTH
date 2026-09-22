@@ -265,6 +265,34 @@ say.
 
 Whether CanvasChamp will drop-ship is unasked, and worth about $14.50 a print.
 
+## Photographs were not actually being backed up
+
+`JSON.stringify(blob)` is `{}`. Silently, with no error. So every export written
+before this carried each photo's id, role and alt text — and none of its pixels.
+The backup of record was a backup of everything except the part that cannot be
+recreated.
+
+Found by checking before the owner started adding photographs in earnest, which
+is the only reason it did not cost anything.
+
+Blobs now travel as base64 under a `__blob_base64` marker and are rebuilt into
+real Blobs on import. Export format version 2. A file from the old version is
+detected on import and **refused** with an explanation, rather than writing
+hollow photo records over working ones.
+
+### Photographs make the file large, so there are two exports
+
+Base64 costs about a third again on top of the raw bytes. One photograph is
+roughly 215 KB in an export; sixty pieces at three shots each would be near
+40 MB, which is close to GitHub's 50 MB warning and slow to move around.
+
+So: **Export everything, with photos** is the real backup, and **Records only**
+is the quick copy. A records-only file never deletes the photographs on the
+device it is imported into — in either merge or replace mode — because a file
+that says nothing about photographs is not saying "delete them". Only a full
+export resets the "last exported" clock, because only a full export is a
+backup.
+
 ## The guide lives in the app
 
 A README on github.com is not where anyone looks while standing in a studio

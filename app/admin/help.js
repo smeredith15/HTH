@@ -34,6 +34,21 @@ export async function renderHelp(host) {
         + 'the printable original is.'),
     ]),
 
+    section('Using it on more than one device', [
+      p('There is no server, so nothing syncs by itself. What moves between '
+        + 'devices is the export file.'),
+      steps('Move everything to another device', [
+        'Backup → Export everything, with photos. Put the file somewhere both devices can reach — a cloud drive is easiest.',
+        'On the other device, open the app, then Backup → Preview a merge and pick the file.',
+        'Merge keeps whichever copy of each record was edited last, and tells you about anything that changed on both.',
+      ]),
+      p('Photographs make the file big, so there is also a records-only export '
+        + 'for a quick copy. It never deletes photos on the device you import it '
+        + 'into — it simply says nothing about them.'),
+      callout('Whichever device you photograph on is the one holding those pictures '
+        + 'until you export. Export after a photography session, not before.'),
+    ]),
+
     section('The six sections', [
       el('dl', { class: 'spec-list' },
         row('Home', 'What needs attention right now, and how long since you last backed up.'),
