@@ -561,6 +561,28 @@ a "Turn offline mode back on". `localStorage` is right here: it is a preference
 about this browser on this device, it must outlive the reload, and it is not
 data worth syncing.
 
+### Exports come in three sizes, and the middle one is the useful one
+
+A catalog with a dozen pieces photographed passes thirty megabytes, which is
+more than an upload will take — so the backup that is most worth showing
+someone is the one that cannot be sent. Records-only solved half of it and
+threw away the photographs, which are most of what is worth looking at.
+
+Thumbnails-only keeps the 600 px derivative and drops the 2,000 px one. Measured
+on sixteen photographs: 9.86 MB becomes 1.30 MB, a factor of 7.6, and a 600 px
+thumbnail is still enough to see how a piece is framed, lit and cropped.
+
+The trap is the import. A thumbnails file lists blob rows, so a naive replace
+would swap every full-size photograph for its thumbnail — a silent downgrade of
+the irreplaceable part. `planImport` now treats any export that is not `all` as
+an incomplete picture of the photographs: never a wholesale replace of the blob
+store, in either mode, and the rows it does carry are merged alongside what is
+there. Only a full export resets the export-age clock.
+
+The wire format stays `true`/`false` for the two old modes and `"thumbs"` for
+the new one, so a file written today still imports into a build from before
+thumbnails existed.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text

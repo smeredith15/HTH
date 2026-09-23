@@ -104,6 +104,20 @@ Print masters are never committed. The registry records where they live.
 | 6 | Sales, commissions, inventory, budgeting, dashboard | **done** |
 | 7 | Optional — encrypted sync, direct commit | **done** |
 
+### Export sizes
+
+Three modes, because a full catalog stops fitting through an upload once pieces
+are photographed. **Everything** is the backup of record. **Thumbnails only**
+keeps the 600 px copy of each photograph and drops the 2,000 px one — about an
+eighth of the size, measured, and still enough to judge framing, lighting and
+crop. **Records only** is the numbers alone.
+
+Importing a thumbnails file can never cost you a full-size photograph: an
+export that does not carry every photograph is never read as a replace for the
+blob store, in either merge or replace mode, so the 2,000 px copies already on
+the device are kept and the thumbnails merge in alongside. Only a full export
+resets the "last backed up" clock, because a thumbnail is not the piece.
+
 ### What Phase 5 covers so far
 
 `manifest.webmanifest` and `sw.js`, so the admin app installs to a home screen

@@ -28,16 +28,29 @@ export async function renderBackup(host) {
       el('p', { class: 'hint' }, 'One JSON file with every artwork, listing, sale, customer, commission, expense and setting. Keep it somewhere that is not this browser.'),
       photos.photos
         ? el('p', { class: 'hint' },
-          `${photos.photos} photo file${photos.photos === 1 ? '' : 's'} on this device, about `
-          + `${readableBytes(photos.photoBytes)} inside an export. Photographs are the part that cannot be replaced, `
-          + 'so include them unless you are just taking a quick copy of the records.')
+          `${photos.photos} photograph${photos.photos === 1 ? '' : 's'} on this device. `
+          + 'Photographs are the part that cannot be replaced, so include them unless the file '
+          + 'has to travel somewhere with a size limit.')
         : null,
       el('div', { class: 'row' },
-        el('button', { class: 'btn primary', type: 'button', onClick: () => doExport({ photos: true }) },
-          photos.photos ? 'Export everything, with photos' : 'Export everything'),
+        el('button', { class: 'btn primary', type: 'button', onClick: () => doExport({ photos: 'all' }) },
+          photos.photos
+            ? `Everything, with photos · ${readableBytes(photos.photoBytes)}`
+            : 'Export everything'),
         photos.photos
-          ? el('button', { class: 'btn ghost', type: 'button', onClick: () => doExport({ photos: false }) }, 'Records only')
-          : null)),
+          ? el('button', { class: 'btn ghost', type: 'button', onClick: () => doExport({ photos: 'thumbs' }) },
+            `Thumbnails only · ${readableBytes(photos.thumbBytes)}`)
+          : null,
+        photos.photos
+          ? el('button', { class: 'btn ghost', type: 'button', onClick: () => doExport({ photos: 'none' }) }, 'Records only')
+          : null),
+      photos.photos
+        ? el('p', { class: 'hint' },
+          el('strong', null, 'Thumbnails only'),
+          ' keeps the 600 px copy of every photograph and drops the 2,000 px one. About a tenth '
+          + 'of the size, still enough to see how a piece is framed and lit, and small enough to '
+          + 'send somewhere. Importing one never replaces the full-size copies you already have.')
+        : null),
 
     el('section', { class: 'panel' },
       el('h2', null, 'Sync between devices'),
@@ -79,9 +92,9 @@ async function doExport(options = {}) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  // A records-only file is not a backup of the photographs, so it does not
-  // reset the clock on the warning.
-  if (options.photos !== false) await patchSettings({ last_exported_at: new Date().toISOString() });
+  // Only a full export is a backup of the photographs, so only a full export
+  // resets the clock on the warning. A thumbnail is not the piece.
+  if (options.photos === 'all') await patchSettings({ last_exported_at: new Date().toISOString() });
   toast(`Exported ${filename} · ${readableBytes(bytes)}`, 'ok');
 }
 
@@ -138,10 +151,17 @@ function previewPanel(plan, filename, report) {
           el('li', { text: `${c.store} · ${c.id} — ${c.reason}` }))))
       : null,
 
-    plan.photos === false
+    plan.photoMode === 'none'
       ? el('div', { class: 'alert warn' },
         el('strong', null, 'This file carries no photographs. '),
         'The photos already on this device are left exactly as they are.')
+      : null,
+
+    plan.photoMode === 'thumbs'
+      ? el('div', { class: 'alert warn' },
+        el('strong', null, 'This file carries thumbnails only. '),
+        'They are merged in, and every full-size copy already on this device is kept — '
+        + 'importing it can never trade a 2,000 px photograph for a 600 px one.')
       : null,
 
     plan.mode === 'replace'
