@@ -5,6 +5,7 @@
 
 import {
   STORES, BLOB_STORES, buildExport, parseImport, planImport, exportFilename, encodeBlobRows,
+  photoRowsFor, isThumbRow,
 } from './backup.js';
 import { normaliseBlobRows } from '../images/photos.js';
 import { DEFAULT_SETTINGS, withDefaults } from './settings.js';
@@ -207,22 +208,27 @@ export async function storageEstimate() {
 
 // --- export / import ------------------------------------------------------
 
-export async function readEverything({ encodePhotos = false } = {}) {
+export async function readEverything({ encodePhotos = false, photos = 'all' } = {}) {
   const data = { settings: await loadSettings() };
   for (const store of STORES) {
     const rows = await getAll(store);
-    data[store] = encodePhotos && BLOB_STORES.includes(store) ? await encodeBlobRows(rows) : rows;
+    if (!BLOB_STORES.includes(store)) { data[store] = rows; continue; }
+    // Narrow before encoding, not after: base64'ing megabytes only to throw
+    // them away is the difference between a slow export and a stalled tab.
+    const wanted = photoRowsFor(photos, rows);
+    data[store] = encodePhotos ? await encodeBlobRows(wanted) : wanted;
   }
   return data;
 }
 
-export async function exportAll({ photos = true } = {}) {
-  const data = await readEverything({ encodePhotos: photos });
-  const payload = buildExport(data, { photos });
+export async function exportAll({ photos = 'all' } = {}) {
+  const mode = photos === true ? 'all' : photos === false ? 'none' : photos;
+  const data = await readEverything({ encodePhotos: mode !== 'none', photos: mode });
+  const payload = buildExport(data, { photos: mode });
   const json = JSON.stringify(payload, null, 2);
   return {
     payload,
-    filename: exportFilename(new Date(), { photos }),
+    filename: exportFilename(new Date(), { photos: mode }),
     json,
     bytes: new Blob([json]).size,
   };
@@ -231,11 +237,15 @@ export async function exportAll({ photos = true } = {}) {
 /** What an export would weigh, without writing one. */
 export async function exportSize() {
   const blobs = await getAll('images_blobs');
-  const photoBytes = blobs.reduce((total, row) => total + (row.blob?.size ?? 0), 0);
+  const bytes = (rows) => Math.round(rows.reduce((t, r) => t + (r.blob?.size ?? 0), 0) * 4 / 3);
+  const thumbs = blobs.filter(isThumbRow);
   return {
-    photos: blobs.length,
+    // One photograph is two rows, a web copy and a thumbnail.
+    photos: thumbs.length,
+    rows: blobs.length,
     // base64 costs about a third again on top of the raw bytes.
-    photoBytes: Math.round(photoBytes * 4 / 3),
+    photoBytes: bytes(blobs),
+    thumbBytes: bytes(thumbs),
   };
 }
 

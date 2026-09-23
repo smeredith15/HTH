@@ -16,6 +16,34 @@ export const EXPORT_VERSION = 2;
 export const BLOB_MARKER = '__blob_base64';
 export const BLOB_STORES = ['images_blobs'];
 
+/**
+ * How much of the photographs an export carries.
+ *
+ * `all` is the backup of record. `none` is the records, when you only want
+ * the numbers. `thumbs` is the middle one that did not exist and turned out
+ * to be the useful one: the 600 px thumbnails without the 2,000 px web
+ * copies, which is about a tenth of the bytes and still enough to see how a
+ * piece is framed, lit and cropped. A full catalog that will not fit through
+ * an upload is not much of a backup to send anyone.
+ */
+export const PHOTO_MODES = ['all', 'thumbs', 'none'];
+
+/** The two suffixes blob ids end in. A thumb is `<artwork>/<image>-thumb`. */
+export const isThumbRow = (row) => typeof row?.id === 'string' && row.id.endsWith('-thumb');
+
+export function photoRowsFor(mode, rows = []) {
+  if (mode === 'none') return [];
+  if (mode === 'thumbs') return rows.filter(isThumbRow);
+  return rows;
+}
+
+/** Old exports said `photos: true | false`; both still read correctly. */
+export function photoModeOf(payload) {
+  if (payload?.photos === true) return 'all';
+  if (payload?.photos === false) return 'none';
+  return PHOTO_MODES.includes(payload?.photos) ? payload.photos : 'all';
+}
+
 /** Every store that export/import must carry. Adding one here is enough. */
 export const STORES = [
   'artworks', 'listings', 'sales', 'customers', 'commissions',
@@ -75,21 +103,27 @@ export function hollowBlobRows(rows = []) {
   });
 }
 
-export function exportFilename(date = new Date(), { photos = true } = {}) {
-  const suffix = photos ? '' : '-records-only';
+export function exportFilename(date = new Date(), { photos = 'all' } = {}) {
+  const mode = photos === true ? 'all' : photos === false ? 'none' : photos;
+  const suffix = { all: '', thumbs: '-thumbnails', none: '-records-only' }[mode] ?? '';
   return `hightide-private-${date.toISOString().slice(0, 10)}${suffix}.json`;
 }
 
-export function buildExport(data, { exported_at = new Date().toISOString(), photos = true } = {}) {
+export function buildExport(data, { exported_at = new Date().toISOString(), photos = 'all' } = {}) {
+  const mode = photos === true ? 'all' : photos === false ? 'none' : photos;
   const payload = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exported_at,
-    photos,
+    // `true`/`false` on the wire for the two old modes, so a file written here
+    // still imports into a build that predates thumbnails.
+    photos: mode === 'all' ? true : mode === 'none' ? false : mode,
     settings: data.settings ?? {},
   };
   for (const store of STORES) {
-    payload[store] = BLOB_STORES.includes(store) && !photos ? [] : (data[store] ?? []);
+    payload[store] = BLOB_STORES.includes(store)
+      ? photoRowsFor(mode, data[store] ?? [])
+      : (data[store] ?? []);
   }
   return payload;
 }
@@ -184,13 +218,20 @@ export function mergeStore(existing = [], incoming = [], { key = 'id' } = {}) {
 
 /** Plan a whole-file merge without writing anything, so the UI can preview it. */
 export function planImport(current, incoming, { mode = 'merge' } = {}) {
-  const plan = { mode, stores: {}, conflicts: [], photos: incoming.photos !== false };
+  const photoMode = photoModeOf(incoming);
+  const plan = { mode, stores: {}, conflicts: [], photos: photoMode !== 'none', photoMode };
   for (const store of STORES) {
-    // A records-only file says nothing about photographs, so a replace from
-    // one must not be read as "delete every photo".
-    if (BLOB_STORES.includes(store) && incoming.photos === false) {
+    // Only a full export knows about every photograph. A records-only or
+    // thumbnails-only file is an incomplete picture of them, so a replace from
+    // one must never be read as "delete the photographs it does not mention" —
+    // that would trade the 2,000 px copies for the 600 px ones.
+    if (BLOB_STORES.includes(store) && photoMode !== 'all') {
       const kept = current[store] ?? [];
-      plan.stores[store] = { rows: kept, added: [], updated: [], unchanged: kept.map((r) => r.id), conflicts: [] };
+      if (!(incoming[store] ?? []).length) {
+        plan.stores[store] = { rows: kept, added: [], updated: [], unchanged: kept.map((r) => r.id), conflicts: [] };
+      } else {
+        plan.stores[store] = mergeStore(kept, incoming[store]);
+      }
       continue;
     }
     if (mode === 'replace') {

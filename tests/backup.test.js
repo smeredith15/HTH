@@ -4,6 +4,7 @@ import {
   buildExport, serializeExport, parseImport, mergeStore, planImport,
   exportFilename, exportAge, ImportError, STORES,
   encodeBlobRows, decodeBlobRows, hollowBlobRows, BLOB_MARKER,
+  photoRowsFor, photoModeOf, isThumbRow, PHOTO_MODES,
 } from '../app/store/backup.js';
 import { newArtwork } from '../app/store/schema.js';
 import { SEED_ARTWORKS, SEED_LISTINGS } from '../app/store/seed.js';
@@ -199,4 +200,89 @@ test('the last-exported warning fires at 14 days (§4.2)', () => {
   assert.equal(exportAge('2026-09-20T00:00:00Z', now).stale, false);
   assert.equal(exportAge('2026-09-08T00:00:00Z', now).days, 14);
   assert.equal(exportAge('2026-09-08T00:00:00Z', now).stale, true);
+});
+
+// --- how much of the photographs an export carries -------------------------
+//
+// A full catalog runs past thirty megabytes once pieces are photographed,
+// which is more than an upload will take. Thumbnails alone are about a tenth
+// of that and still show how a piece is framed, lit and cropped.
+
+const blobRows = () => [
+  { id: 'golf-bag/straight_on-web', artwork_id: 'golf-bag', blob: { [BLOB_MARKER]: true, data: 'AAAA', type: 'image/jpeg', size: 500_000 } },
+  { id: 'golf-bag/straight_on-thumb', artwork_id: 'golf-bag', blob: { [BLOB_MARKER]: true, data: 'BB', type: 'image/jpeg', size: 50_000 } },
+  { id: 'moose/in_room-web', artwork_id: 'moose', blob: { [BLOB_MARKER]: true, data: 'CCCC', type: 'image/jpeg', size: 500_000 } },
+  { id: 'moose/in_room-thumb', artwork_id: 'moose', blob: { [BLOB_MARKER]: true, data: 'DD', type: 'image/jpeg', size: 50_000 } },
+];
+
+test('a thumbnail row is recognised by its key, not by its size', () => {
+  assert.equal(isThumbRow({ id: 'golf-bag/straight_on-thumb' }), true);
+  assert.equal(isThumbRow({ id: 'golf-bag/straight_on-web' }), false);
+  assert.equal(isThumbRow({}), false);
+});
+
+test('each mode carries what it says it does', () => {
+  const rows = blobRows();
+  assert.equal(photoRowsFor('all', rows).length, 4);
+  assert.deepEqual(photoRowsFor('thumbs', rows).map((r) => r.id),
+    ['golf-bag/straight_on-thumb', 'moose/in_room-thumb']);
+  assert.deepEqual(photoRowsFor('none', rows), []);
+});
+
+test('the three modes are named in the file and in its name', () => {
+  const data = { ...FULL, images_blobs: blobRows() };
+  assert.equal(buildExport(data, { photos: 'all' }).images_blobs.length, 4);
+  assert.equal(buildExport(data, { photos: 'thumbs' }).images_blobs.length, 2);
+  assert.equal(buildExport(data, { photos: 'none' }).images_blobs.length, 0);
+
+  const day = new Date('2026-09-23T10:00:00Z');
+  assert.equal(exportFilename(day, { photos: 'all' }), 'hightide-private-2026-09-23.json');
+  assert.equal(exportFilename(day, { photos: 'thumbs' }), 'hightide-private-2026-09-23-thumbnails.json');
+  assert.equal(exportFilename(day, { photos: 'none' }), 'hightide-private-2026-09-23-records-only.json');
+  assert.deepEqual(PHOTO_MODES, ['all', 'thumbs', 'none']);
+});
+
+// Files written before thumbnails existed say `true` or `false`, and a build
+// that predates them must still read a file written today.
+test('the old true/false wire values still read, both ways', () => {
+  assert.equal(photoModeOf({ photos: true }), 'all');
+  assert.equal(photoModeOf({ photos: false }), 'none');
+  assert.equal(photoModeOf({ photos: 'thumbs' }), 'thumbs');
+  assert.equal(photoModeOf({}), 'all', 'a file from before the field existed carried everything');
+
+  assert.equal(buildExport(FULL, { photos: 'all' }).photos, true);
+  assert.equal(buildExport(FULL, { photos: 'none' }).photos, false);
+  assert.equal(buildExport(FULL, { photos: 'thumbs' }).photos, 'thumbs');
+});
+
+// The trap: importing thumbnails must never cost you the full-size copies.
+test('a thumbnails file never replaces a full-size photograph', () => {
+  const current = { images_blobs: blobRows() };
+  const incoming = buildExport({ images_blobs: photoRowsFor('thumbs', blobRows()) }, { photos: 'thumbs' });
+
+  for (const mode of ['merge', 'replace']) {
+    const plan = planImport(current, incoming, { mode });
+    assert.equal(plan.photoMode, 'thumbs');
+    assert.deepEqual(plan.stores.images_blobs.rows.map((r) => r.id).sort(), [
+      'golf-bag/straight_on-thumb', 'golf-bag/straight_on-web',
+      'moose/in_room-thumb', 'moose/in_room-web',
+    ], `${mode} must keep the web copies`);
+  }
+});
+
+test('a thumbnails file does bring thumbnails to a device that has none', () => {
+  const current = { images_blobs: [] };
+  const incoming = buildExport({ images_blobs: photoRowsFor('thumbs', blobRows()) }, { photos: 'thumbs' });
+  const plan = planImport(current, incoming, { mode: 'merge' });
+  assert.deepEqual(plan.stores.images_blobs.rows.map((r) => r.id),
+    ['golf-bag/straight_on-thumb', 'moose/in_room-thumb']);
+  assert.equal(plan.stores.images_blobs.added.length, 2);
+});
+
+test('a records-only file still says nothing about photographs', () => {
+  const current = { images_blobs: blobRows() };
+  const incoming = buildExport({ images_blobs: [] }, { photos: 'none' });
+  const plan = planImport(current, incoming, { mode: 'replace' });
+  assert.equal(plan.photoMode, 'none');
+  assert.equal(plan.stores.images_blobs.rows.length, 4);
 });
