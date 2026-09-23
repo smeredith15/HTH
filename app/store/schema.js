@@ -290,14 +290,7 @@ export function printSource(artwork) {
   if (master?.exists && master.long_edge_px) {
     return { long_edge_px: master.long_edge_px, from: 'master', cropped: true, image: null };
   }
-  let best = null;
-  for (const image of artwork?.images ?? []) {
-    const px = imageLongEdge(image);
-    if (px && (!best || px > best.long_edge_px)) {
-      best = { long_edge_px: px, from: 'photo', cropped: false, image };
-    }
-  }
-  return best;
+  return largestPhoto(artwork);
 }
 
 /**
@@ -308,6 +301,52 @@ export function printSource(artwork) {
 export function hasUsableMaster(artwork) {
   const master = artwork?.print_master;
   return !!master?.exists && master.print_ready !== 'no';
+}
+
+/**
+ * The smallest long edge worth calling a recoverable master.
+ *
+ * 3,000 px is 20 in at 150 DPI before cropping, which is a real print of a
+ * real size. Below it you are looking at a record of the piece rather than a
+ * source for one.
+ */
+export const RECOVERABLE_LONG_EDGE = 3000;
+
+/**
+ * A piece that is gone, has no master — and has a photograph big enough to
+ * crop one out of.
+ *
+ * This category did not exist, and its absence made the app lie. It counted
+ * every gone piece without a registry entry as "cannot be reproduced", which
+ * was true when nothing had been photographed. Once eleven sold and gifted
+ * pieces had 4,080 px photographs attached, it was telling their owner they
+ * were lost while holding the file that could still print them at 27 inches.
+ */
+export function recoverableFromPhoto(artwork) {
+  if (!isGone(artwork) || hasUsableMaster(artwork)) return null;
+  // Deliberately not printSource: that prefers a recorded master even when it
+  // is marked unprintable, because quoting its real ceiling is more useful to
+  // a listing than saying nothing. Here the question is different — what is
+  // the best file that could still become a master — and an unusable master
+  // is not an answer to it.
+  const best = largestPhoto(artwork);
+  if (!best || best.long_edge_px < RECOVERABLE_LONG_EDGE) return null;
+  return { ...best, limits: printLimits(best) };
+}
+
+/** The biggest photograph on a record, whatever its role. */
+export function largestPhoto(artwork) {
+  let best = null;
+  for (const image of artwork?.images ?? []) {
+    const px = imageLongEdge(image);
+    if (px && (!best || px > best.long_edge_px)) best = { long_edge_px: px, from: 'photo', cropped: false, image };
+  }
+  return best;
+}
+
+/** Gone, with no master and nothing on file big enough to make one. Truly lost. */
+export function trulyLost(artwork) {
+  return isGone(artwork) && !hasUsableMaster(artwork) && !recoverableFromPhoto(artwork);
 }
 
 /** Gone from the studio, so it can only ever be reproduced from a file. */

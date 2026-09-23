@@ -583,6 +583,43 @@ The wire format stays `true`/`false` for the two old modes and `"thumbs"` for
 the new one, so a file written today still imports into a build from before
 thumbnails existed.
 
+### Gone is not the same as lost
+
+The home screen counted every piece that had left the studio without a registry
+entry as "cannot be reproduced". That was true while almost nothing had been
+photographed. Once eleven sold and gifted pieces had 4,080 px photographs
+attached it was telling their owner they were lost while holding the file that
+could still print them at 27 inches — and hiding the work that would recover
+them.
+
+`trulyLost` is now gone, no usable master, and nothing on file big enough to
+make one. `recoverableFromPhoto` is the other eleven, each listed with what it
+could still print to. The floor is 3,000 px, which is 20 in at 150 DPI before
+cropping; below that you have a record of the piece rather than a source for one.
+
+It deliberately does not read `printSource`. That prefers a recorded master
+even when it is marked unprintable, because quoting a real ceiling helps a
+listing more than silence does. The question here is different — what is the
+best file that could still *become* a master — and an unusable master is not an
+answer to it.
+
+### The parser flattened the photo mode, and the tests missed it
+
+`planImport` was written to refuse a wholesale replace of the blob store from
+any export that does not carry every photograph, so importing a thumbnails file
+could never trade a 2,000 px photograph for its 600 px thumbnail. Tests covered
+it in both modes and passed.
+
+They passed because they handed `planImport` a payload directly. A real file
+goes through `parseImport` first, and that did `photos: parsed.photos !== false`
+— which turns `"thumbs"` into `true`. Every guard downstream then believed a
+thumbnails file was a complete export, and the protection did not exist on the
+only path that runs.
+
+Found by importing a real thumbnails export in a browser rather than trusting
+the unit tests. There is now a test that walks the whole way in, from serialize
+through parse to plan.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text

@@ -154,10 +154,17 @@ export function parseImport(text) {
       `This file was written by a newer version of the app (v${parsed.version}). Update the app first.`,
     );
   }
+  // Keep the photo mode, do not flatten it to a boolean. `photos !== false`
+  // turned "thumbs" into true, so every guard downstream believed a
+  // thumbnails file was a complete export — and a replace from one would have
+  // swapped every 2,000 px photograph for its 600 px thumbnail. The tests for
+  // that guard passed because they called planImport directly; the path a
+  // real file takes goes through here first.
+  const mode = photoModeOf(parsed);
   const out = {
     settings: parsed.settings ?? {},
     exported_at: parsed.exported_at ?? null,
-    photos: parsed.photos !== false,
+    photos: mode === 'all' ? true : mode === 'none' ? false : mode,
   };
   for (const store of STORES) {
     const rows = parsed[store];

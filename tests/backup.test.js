@@ -256,6 +256,23 @@ test('the old true/false wire values still read, both ways', () => {
 });
 
 // The trap: importing thumbnails must never cost you the full-size copies.
+// The guard below lives in planImport, but a real file reaches it through
+// parseImport — which used to flatten `photos` to a boolean and threw the mode
+// away. Testing planImport alone passed while the actual import path was
+// unprotected, so this walks the whole way in.
+test('the photo mode survives being parsed from a file', () => {
+  const written = serializeExport({ images_blobs: photoRowsFor('thumbs', blobRows()) }, { photos: 'thumbs' });
+  const parsed = parseImport(written);
+  assert.equal(photoModeOf(parsed), 'thumbs');
+
+  const plan = planImport({ images_blobs: blobRows() }, parsed, { mode: 'replace' });
+  assert.equal(plan.photoMode, 'thumbs');
+  assert.equal(plan.stores.images_blobs.rows.length, 4, 'the web copies survive a replace');
+
+  assert.equal(photoModeOf(parseImport(serializeExport(FULL, { photos: 'all' }))), 'all');
+  assert.equal(photoModeOf(parseImport(serializeExport(FULL, { photos: 'none' }))), 'none');
+});
+
 test('a thumbnails file never replaces a full-size photograph', () => {
   const current = { images_blobs: blobRows() };
   const incoming = buildExport({ images_blobs: photoRowsFor('thumbs', blobRows()) }, { photos: 'thumbs' });

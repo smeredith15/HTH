@@ -7,7 +7,10 @@ import { getAll, loadSettings, storageEstimate } from '../store/db.js';
 import { listListings, listingsNeedingAttention } from '../store/listings.js';
 import { listPrintCosts } from '../store/print-costs.js';
 import { exportAge } from '../store/backup.js';
-import { effectiveRights, hasUsableMaster, isGone, photographBeforeItLeaves } from '../store/schema.js';
+import {
+  effectiveRights, hasUsableMaster, isGone, photographBeforeItLeaves,
+  recoverableFromPhoto, trulyLost,
+} from '../store/schema.js';
 import { promptQuickAdd } from './catalog.js';
 import { shotList } from '../images/photos.js';
 
@@ -27,7 +30,13 @@ export async function renderHome(host) {
   }, {});
 
   const gone = artworks.filter(isGone);
-  const lostCatalog = gone.filter((a) => !hasUsableMaster(a));
+  // Split, because they are different problems with different answers. One is
+  // a loss to record; the other is an afternoon's cropping.
+  const lostCatalog = artworks.filter(trulyLost);
+  const recoverable = gone
+    .map((a) => ({ artwork: a, source: recoverableFromPhoto(a) }))
+    .filter((r) => r.source)
+    .sort((a, b) => b.source.long_edge_px - a.source.long_edge_px);
   // A reminder snoozed on the artwork should be snoozed here too, or the
   // snooze is not a snooze.
   const needsPhoto = artworks.filter((a) => photographBeforeItLeaves(a)?.showing);
@@ -54,9 +63,26 @@ export async function renderHome(host) {
     lostCatalog.length
       ? el('section', { class: 'panel alert bad' },
         el('h2', null, 'Lost catalog'),
-        el('p', null, `${lostCatalog.length} ${lostCatalog.length === 1 ? 'piece has' : 'pieces have'} left without a usable print master and cannot be reproduced.`),
+        el('p', null, `${lostCatalog.length} ${lostCatalog.length === 1 ? 'piece has' : 'pieces have'} left without a usable print master and nothing on file big enough to make one. ${lostCatalog.length === 1 ? 'It' : 'They'} cannot be reproduced.`),
         listOf(lostCatalog.slice(0, 8)),
         lostCatalog.length > 8 ? el('p', { class: 'muted', text: `…and ${lostCatalog.length - 8} more.` }) : null)
+      : null,
+
+    // Gone, no master recorded — but a photograph large enough to crop one out
+    // of. These used to be counted as lost, which was wrong and hid the work.
+    recoverable.length
+      ? el('section', { class: 'panel alert warn' },
+        el('h2', null, 'Still recoverable'),
+        el('p', null,
+          `${recoverable.length} ${recoverable.length === 1 ? 'piece has' : 'pieces have'} left the studio with no master recorded, `
+          + 'but a photograph big enough to crop one out of. Crop it, measure it on the record, and '
+          + `${recoverable.length === 1 ? 'it is' : 'they are'} printable again.`),
+        el('ul', { class: 'shot-list' }, recoverable.slice(0, 8).map(({ artwork, source }) =>
+          el('li', null,
+            el('a', { href: `#/artwork/${artwork.id}`, text: artwork.title }),
+            el('span', { class: 'muted small', text: `${source.long_edge_px} px` }),
+            el('span', { class: 'shot-missing muted small', text: `up to ${source.limits.at150.toFixed(0)} in at 150 DPI, before cropping` })))),
+        recoverable.length > 8 ? el('p', { class: 'muted', text: `…and ${recoverable.length - 8} more.` }) : null)
       : null,
 
     needsPhoto.length

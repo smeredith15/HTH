@@ -265,6 +265,13 @@ async function ingest(artwork, files, role, onChange, replaceId) {
   const list = Array.isArray(files) ? files : [files];
   try {
     let base = artwork;
+    // Replacing swaps the file, not the subject. What was written *about* the
+    // photograph survives it: the alt text, the link back to the original,
+    // whether it shows in the kiosk and where it sits. Losing those on a
+    // replace cost the golf bag all five of its descriptions.
+    const carried = replaceId
+      ? pick(artwork.images?.find((i) => i.id === replaceId), ['alt', 'source_url', 'in_kiosk', 'kiosk_order'])
+      : {};
     if (replaceId) base = await removePhoto(artwork, replaceId);
 
     const added = [];
@@ -278,7 +285,9 @@ async function ingest(artwork, files, role, onChange, replaceId) {
       toast(list.length > 1 ? `Resizing ${index + 1} of ${list.length}…` : 'Resizing…');
       try {
         const { image, processed } = await addPhoto(base, file, { role });
-        base = { ...base, images: [...(base.images ?? []), image] };
+        // Quality flags are deliberately not carried: a new file is exactly
+        // how "blurry" or "low resolution" stops being true.
+        base = { ...base, images: [...(base.images ?? []), { ...image, ...carried }] };
         added.push(image);
         lastWeb = processed.web;
         webBytes += processed.web.bytes;
@@ -298,6 +307,15 @@ async function ingest(artwork, files, role, onChange, replaceId) {
     console.error(err);
     toast(err.message, 'warn');
   }
+}
+
+/** The fields of `source` that are actually set, so a spread cannot blank one. */
+function pick(source, keys) {
+  const out = {};
+  for (const key of keys) {
+    if (source?.[key] !== undefined && source[key] !== null) out[key] = source[key];
+  }
+  return out;
 }
 
 /** What to say afterwards: the counts that matter, and nothing else. */

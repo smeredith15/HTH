@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   slugify, uniqueId, newArtwork, deriveRightsAnswer, effectiveRights,
   printLimits, completeness, hasUsableMaster, isGone,
+  recoverableFromPhoto, trulyLost, RECOVERABLE_LONG_EDGE,
   PUBLIC_ARTWORK_FIELDS, PRIVATE_ARTWORK_FIELDS,
 } from '../app/store/schema.js';
 
@@ -89,4 +90,58 @@ test('completeness counts the fields that matter', () => {
   }));
   assert.equal(better.done, 5); // dimensions, substrate, straight-on, alt text, rights
   assert.equal(better.checks.find((c) => c.key === 'print_master').ok, false);
+});
+
+// --- gone, but not necessarily lost ----------------------------------------
+//
+// The app counted every gone piece with no registry entry as "cannot be
+// reproduced". That was true while nothing had been photographed. Once eleven
+// sold and gifted pieces had 4,080 px photographs attached it was telling
+// their owner they were lost while holding the file that could still print
+// them at 27 inches.
+
+const sold = (patch) => newArtwork({ title: 'x', disposition: 'sold', ...patch });
+const photo = (px) => ({ id: 'straight_on', role: 'straight_on', original_width_px: px, original_height_px: Math.round(px * 0.75) });
+
+test('a big photograph makes a gone piece recoverable, not lost', () => {
+  const a = sold({ images: [photo(4080)] });
+  const r = recoverableFromPhoto(a);
+  assert.ok(r, 'a 4,080 px photograph is a master waiting to be cropped');
+  assert.equal(r.long_edge_px, 4080);
+  assert.equal(r.limits.at150, 27.2);
+  assert.equal(trulyLost(a), false);
+  assert.equal(hasUsableMaster(a), false, 'it is still not a master, and must not pretend to be');
+});
+
+test('a small photograph is a record of the piece, not a source for one', () => {
+  const a = sold({ images: [photo(1800)] });
+  assert.equal(recoverableFromPhoto(a), null);
+  assert.equal(trulyLost(a), true);
+  assert.equal(RECOVERABLE_LONG_EDGE, 3000);
+});
+
+test('nothing on file is the only thing that is truly lost', () => {
+  const a = sold({});
+  assert.equal(recoverableFromPhoto(a), null);
+  assert.equal(trulyLost(a), true);
+});
+
+test('a measured master is neither lost nor waiting to be cropped', () => {
+  const a = sold({ images: [photo(4080)], print_master: { exists: true, long_edge_px: 6000, print_ready: 'yes' } });
+  assert.equal(recoverableFromPhoto(a), null, 'it already has one');
+  assert.equal(trulyLost(a), false);
+});
+
+// A master the owner marked unprintable is not usable, and the photograph
+// behind it may still be the way back.
+test('a master marked "no" falls back to the photograph', () => {
+  const a = sold({ images: [photo(4080)], print_master: { exists: true, long_edge_px: 1200, print_ready: 'no' } });
+  assert.equal(hasUsableMaster(a), false);
+  assert.ok(recoverableFromPhoto(a));
+});
+
+test('a piece still in the studio is not in either list', () => {
+  const a = newArtwork({ title: 'x', disposition: 'available', on_hand: true, images: [photo(4080)] });
+  assert.equal(recoverableFromPhoto(a), null);
+  assert.equal(trulyLost(a), false);
 });
