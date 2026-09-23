@@ -289,6 +289,37 @@ export function checkProcessingVsQuantity(listing) {
 }
 
 /** §5.5: giclée is only honest once the vendor confirms the process. */
+/**
+ * §B.5's description templates say the panel is scorched black and carved
+ * back into, because almost every piece is. The toucan is a painting. A
+ * listing generated from the stock template would describe it as burned and
+ * carved, to a buyer, in the body of the listing.
+ *
+ * The record already knows: `techniques` says `paint` and the note says
+ * "Painted, not scorched." This makes the description answer to it.
+ */
+const CARVE_WORDS = /\b(scorched|scorch|carved|carve|burned|burnt|char|pyrograph\w*)\b/i;
+
+export function checkTechniqueClaim(listing, artwork) {
+  if (listing.listing_type === 'print') return [];
+  const techniques = artwork?.techniques ?? [];
+  if (!techniques.length) return [];
+
+  const subtractive = ['scorch_and_carve', 'relief_carve', 'pyrography_line']
+    .some((t) => techniques.includes(t));
+  if (subtractive) return [];
+
+  const text = [listing.title, listing.description, (listing.materials ?? []).join(' ')]
+    .filter(Boolean).join(' ');
+  const hit = text.match(CARVE_WORDS);
+  if (!hit) return [];
+
+  return [finding('technique_claim', 'stop', 'description',
+    `This listing says "${hit[0]}" but the record's techniques are ${techniques.join(', ')} — `
+    + 'nothing subtractive. The stock description assumes a scorched and carved panel; this piece '
+    + 'is not one, and the buyer is being told how it was made.')];
+}
+
 export function checkGicleeClaim(listing) {
   const text = [listing.title, listing.description, listing.category_path].filter(Boolean).join(' ');
   if (!/gicl[ée]e/i.test(text)) return [];
@@ -385,6 +416,7 @@ export function validateListing(listing, artwork, settings, context = {}) {
     ...checkRights(listing, artwork),
     ...checkPriceFloor(listing, artwork, settings),
     ...checkProcessingVsQuantity(listing),
+    ...checkTechniqueClaim(listing, artwork),
     ...checkGicleeClaim(listing),
     ...checkUnsupportedPrintClaims(listing),
     ...checkPrintMargin(listing, settings, context),

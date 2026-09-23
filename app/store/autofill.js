@@ -87,8 +87,9 @@ export function defaultsForNew(title, artworks) {
   const category = guessCategory(title);
   const series = guessSeries(category);
   const applied = {
-    // Every piece is made this way. §B.5: the whole panel is scorched, then
-    // carved back into.
+    // Most pieces are made this way. §B.5: the whole panel is scorched, then
+    // carved back into. A new piece inherits it as a starting point, and
+    // anything else — the toucan is a painting — is changed on the record.
     techniques: ['scorch_and_carve'],
     subject_name: String(title ?? '').trim() || null,
     ...studioDefaults(artworks),
@@ -121,11 +122,55 @@ export function suggestAlt(artwork, image = {}) {
   const lead = roleWords[image.role] ?? '';
   const material = substrateWords[artwork?.substrate];
   const colours = (artwork?.colors ?? []).length ? ` in ${artwork.colors.join(' and ')}` : '';
-  const body = material
-    ? `${subject}${colours}, scorched and carved into ${material}`
-    : `${subject}${colours}, scorched and carved into wood`;
+  // "in purple stain, … , stained" says it twice. The colours already carry it.
+  const saysStain = (artwork?.colors ?? []).some((c) => /stain/i.test(c));
+  const medium = mediumPhrase(artwork, material, { skipStain: saysStain });
+  const body = `${subject}${colours}${medium ? `, ${medium}` : ''}`;
 
   // The subject is a proper noun more often than not, so it keeps its capital.
   const text = `${lead}${body}`;
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+}
+
+/**
+ * How the piece was made, from what the record says — not from what most of
+ * the catalog happens to be.
+ *
+ * This used to read "scorched and carved into wood" for everything, with a
+ * comment asserting that every piece is made that way. The toucan is a
+ * painting. Drafting alt text for it produced a confident, published, false
+ * description of the artwork, and alt text is exactly where nobody looks to
+ * check. Same shape of mistake as claiming archival ink on a latex print.
+ *
+ * Structural techniques are mutually exclusive in practice, so the first one
+ * present wins; stain and gold leaf are finishes and ride along behind. With
+ * no technique recorded this says nothing rather than guessing, because a
+ * silent omission is recoverable and a confident wrong answer is not.
+ */
+export function mediumPhrase(artwork, material = null, { skipStain = false } = {}) {
+  const techniques = artwork?.techniques ?? [];
+  const on = material ? ` ${material}` : ' wood';
+
+  const structural = [
+    ['scorch_and_carve', `scorched and carved into${on}`],
+    ['relief_carve', `carved in relief into${on}`],
+    ['pyrography_line', `burned into${on}`],
+    ['paint', material ? `painted on ${material}` : 'painted'],
+  ].find(([key]) => techniques.includes(key));
+
+  // No technique on the record is not evidence of the usual one. Say nothing.
+  if (!structural) return '';
+
+  // Whatever was added on top of the structural work. A piece can be carved
+  // *and* painted — the whale's background is — so paint has to survive not
+  // being the headline.
+  const added = [
+    techniques.includes('stain') && !skipStain ? 'stained' : null,
+    techniques.includes('paint') && structural[0] !== 'paint' ? 'painted' : null,
+  ].filter(Boolean);
+
+  const parts = [structural[1]];
+  if (added.length) parts.push(added.join(' and '));
+  if (techniques.includes('gold_leaf')) parts.push('with gold leaf');
+  return parts.join(', ');
 }

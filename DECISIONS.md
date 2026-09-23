@@ -620,6 +620,27 @@ Found by importing a real thumbnails export in a browser rather than trusting
 the unit tests. There is now a test that walks the whole way in, from serialize
 through parse to plan.
 
+### The medium comes from the record, not from the shop
+
+`suggestAlt` produced "scorched and carved into wood" for every piece, with a
+comment asserting that every piece is made that way. Thirty-two are. One is a
+painting, and drafting alt text for it wrote a confident, false description of
+the artwork into the one field nobody re-reads. Same shape of mistake as
+claiming archival ink on a latex print, and made the same way: generalising
+from what is usually true.
+
+`mediumPhrase` now reads `techniques`. The first structural technique wins —
+scorch-and-carve, relief carve, pyrography or paint — and stain, paint and gold
+leaf ride behind it, so a piece that is carved *and* painted says both. With no
+technique recorded it says nothing at all: eighteen records are in that state,
+and filling the gap with the shop's usual technique is exactly how the toucan
+would have been mislabelled.
+
+`checkTechniqueClaim` does the same for listings. §B.5's stock description
+explains that the panel is scorched black and carved back into, which is a
+blocker on a piece whose techniques contain nothing subtractive — the buyer is
+being told how it was made.
+
 ## Assumptions made without asking
 
 ### 0. Two B.6 templates deviate from the spec text

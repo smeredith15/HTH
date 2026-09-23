@@ -5,6 +5,7 @@ import {
   checkSubstrateConsistency, checkDimensionConsistency, checkOffsiteRedirects,
   checkRoundVariant, checkPrintResolution, checkRights, checkPriceFloor,
   checkProcessingVsQuantity, checkGicleeClaim, checkUnsupportedPrintClaims,
+  checkTechniqueClaim,
 } from '../app/listing/validators.js';
 import { newArtwork, newListing } from '../app/store/schema.js';
 import { DEFAULT_SETTINGS as S } from '../app/store/settings.js';
@@ -300,4 +301,42 @@ test('findings are ordered worst first and summarise', () => {
 test('nothing in the validators throws on an empty listing', () => {
   assert.doesNotThrow(() => validateListing(newListing({}), null, S));
   assert.doesNotThrow(() => validateListing({}, undefined, undefined));
+});
+
+// --- the description has to match how the piece was actually made ----------
+
+test('a painting listed with the stock carved description is a blocker', () => {
+  const toucan = newArtwork({ title: 'Toucan', techniques: ['paint'] });
+  const listing = {
+    listing_type: 'original',
+    title: 'Toucan Wall Art',
+    description: 'The whole panel is scorched black, then I carve back into it to reveal the wood.',
+  };
+  const findings = checkTechniqueClaim(listing, toucan);
+  assert.equal(findings[0].level, 'stop');
+  assert.match(findings[0].message, /techniques are paint/);
+});
+
+test('a carved piece described as carved is fine', () => {
+  const moose = newArtwork({ title: 'Moose', techniques: ['scorch_and_carve', 'paint'] });
+  assert.deepEqual(checkTechniqueClaim({
+    listing_type: 'original',
+    description: 'The whole panel is scorched black, then carved back into.',
+  }, moose), []);
+});
+
+test('a painting described as a painting passes', () => {
+  const toucan = newArtwork({ title: 'Toucan', techniques: ['paint'] });
+  assert.deepEqual(checkTechniqueClaim({
+    listing_type: 'original',
+    title: 'Toucan Painting',
+    description: 'Painted by hand on a wood panel.',
+  }, toucan), []);
+});
+
+// An empty techniques list is missing information, not evidence of a painting.
+test('a record with no techniques recorded is not second-guessed', () => {
+  assert.deepEqual(checkTechniqueClaim({
+    listing_type: 'original', description: 'Scorched and carved.',
+  }, newArtwork({ title: 'x' })), []);
 });

@@ -44,6 +44,10 @@ export const PHOTO_CHECKLIST = [
 
 export const SHOOTING_GUIDE = [
   'Open shade or an overcast day. Direct sun blows out the pale wood and fills the carving with hard shadow.',
+  'A frame casting a shadow onto the piece means the light is coming from one side. Lay the piece '
+  + 'flat, face up, outdoors under open sky, and shoot straight down: a whole overcast sky is a light '
+  + 'source too big to cast an edge. Indoors, two lamps at 45° from opposite sides cancel each '
+  + 'other\u2019s shadows — one lamp never will.',
   'No flash. It flattens the surface and throws the frame’s shadow onto the wall.',
   'Camera square to the centre of the piece, not above or below it.',
   'Use a tripod, or brace the phone against something solid.',

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  guessCategory, guessSeries, studioDefaults, defaultsForNew, suggestAlt,
+  guessCategory, guessSeries, studioDefaults, defaultsForNew, suggestAlt, mediumPhrase,
   NEVER_GUESSED, CARRIED_FORWARD,
 } from '../app/store/autofill.js';
 import { newArtwork, CATEGORY } from '../app/store/schema.js';
@@ -104,15 +104,19 @@ test('a title with no clue leaves the category alone', () => {
 // --- alt text --------------------------------------------------------------
 
 test('alt text is drafted from what the record already knows', () => {
-  const artwork = { subject_name: 'Assateague Lighthouse', substrate: 'birch', colors: ['red stain'] };
+  const artwork = {
+    subject_name: 'Assateague Lighthouse', substrate: 'birch',
+    techniques: ['scorch_and_carve', 'stain'], colors: ['red stain'],
+  };
   assert.equal(
     suggestAlt(artwork, { role: 'straight_on' }),
+    // Not "… , stained" as well: the colours already said it.
     'Assateague Lighthouse in red stain, scorched and carved into birch.',
   );
 });
 
 test('the role changes how the draft opens, and proper nouns keep their capital', () => {
-  const artwork = { subject_name: 'Hooper Strait Lighthouse', substrate: 'pine' };
+  const artwork = { subject_name: 'Hooper Strait Lighthouse', substrate: 'pine', techniques: ['scorch_and_carve'] };
   assert.equal(
     suggestAlt(artwork, { role: 'detail_raking' }),
     'A close detail of Hooper Strait Lighthouse, scorched and carved into pine.',
@@ -123,9 +127,52 @@ test('the role changes how the draft opens, and proper nouns keep their capital'
 
 test('an unknown substrate still produces usable alt text', () => {
   assert.equal(
-    suggestAlt({ subject_name: 'Blue crab' }, { role: 'straight_on' }),
+    suggestAlt({ subject_name: 'Blue crab', techniques: ['scorch_and_carve'] }, { role: 'straight_on' }),
     'Blue crab, scorched and carved into wood.',
   );
+});
+
+// --- the medium comes from the record, not from the shop -------------------
+//
+// This said "scorched and carved into wood" for everything, with a comment
+// asserting every piece is made that way. The toucan is a painting. Drafting
+// alt text for it produced a confident, published, false description of the
+// artwork — in the one field nobody re-reads. Same shape as claiming archival
+// ink on a latex print.
+
+test('a painting is not described as carved', () => {
+  const toucan = { subject_name: 'Toucan', techniques: ['paint'] };
+  assert.equal(suggestAlt(toucan, { role: 'straight_on' }), 'Toucan, painted.');
+  assert.equal(
+    suggestAlt({ ...toucan, substrate: 'birch' }, { role: 'straight_on' }),
+    'Toucan, painted on birch.',
+  );
+});
+
+test('a piece that is carved and painted says both', () => {
+  // The whale's background is painted; the whale itself is cut out of the char.
+  assert.equal(
+    mediumPhrase({ techniques: ['scorch_and_carve', 'paint', 'stain'] }, 'birch'),
+    'scorched and carved into birch, stained and painted',
+  );
+  assert.equal(
+    mediumPhrase({ techniques: ['scorch_and_carve', 'gold_leaf', 'paint', 'stain'] }, 'birch'),
+    'scorched and carved into birch, stained and painted, with gold leaf',
+  );
+});
+
+test('each structural technique gets its own words', () => {
+  assert.equal(mediumPhrase({ techniques: ['relief_carve'] }, 'pine'), 'carved in relief into pine');
+  assert.equal(mediumPhrase({ techniques: ['pyrography_line'] }, 'pine'), 'burned into pine');
+  assert.equal(mediumPhrase({ techniques: ['scorch_and_carve'] }), 'scorched and carved into wood');
+});
+
+// Eighteen records carry no technique at all. Filling that gap with the shop's
+// usual one is how the toucan would have been mislabelled in the first place.
+test('no technique on the record means no claim about how it was made', () => {
+  assert.equal(mediumPhrase({ techniques: [] }, 'birch'), '');
+  assert.equal(suggestAlt({ subject_name: 'Unknown piece', substrate: 'birch' }, { role: 'straight_on' }),
+    'Unknown piece.');
 });
 
 test('with no subject there is nothing honest to say', () => {
